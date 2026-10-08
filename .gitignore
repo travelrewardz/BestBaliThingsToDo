@@ -1,0 +1,55 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Next.js build output
+.next/
+out/
+next-env.d.ts
+
+# Local environment & secrets — NEVER commit these
+.env
+.env.local
+.env.*.local
+.env.production
+.env.development
+
+# Databases (local dev/test)
+prisma/dev.db
+prisma/dev.db-journal
+prisma/test.db
+prisma/test.db-journal
+tests/*.db
+tests/*.db-journal
+*.sqlite
+
+# Backups
+backups/
+
+# Runtime uploads (seed media IS committed under public/media)
+public/uploads/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+.pids
+
+# Tooling / coverage
+coverage/
+.vitest/
+.tools/
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# TypeScript
+*.tsbuildinfo
+
+# Freebuff workspace metadata
+.freebuff/

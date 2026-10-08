@@ -1,0 +1,127 @@
+@import "tailwindcss";
+
+@theme {
+  /* Brand — deep tropical teal */
+  --color-brand-50: #f0fdfa;
+  --color-brand-100: #ccfbf1;
+  --color-brand-200: #99f6e4;
+  --color-brand-300: #5eead4;
+  --color-brand-400: #2dd4bf;
+  --color-brand-500: #14b8a6;
+  --color-brand-600: #0d9488;
+  --color-brand-700: #0f766e;
+  --color-brand-800: #115e59;
+  --color-brand-900: #134e4a;
+
+  /* Accent — Bali sunset orange */
+  --color-sunset-300: #fdba74;
+  --color-sunset-400: #fb923c;
+  --color-sunset-500: #f97316;
+  --color-sunset-600: #ea580c;
+
+  /* Sand backgrounds */
+  --color-sand-50: #fffaf5;
+  --color-sand-100: #fff7ed;
+
+  --font-display: var(--font-fraunces), Georgia, "Times New Roman", serif;
+  --font-sans: var(--font-jakarta), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, Arial, sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply bg-white text-slate-800 font-sans antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
+  color: #0f172a;
+}
+
+/* Lazy image fade-in */
+.img-fade {
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+.img-fade.is-loaded {
+  opacity: 1;
+}
+
+/* Booking widget sticky on desktop */
+.sticky-book {
+  position: sticky;
+  top: 6rem;
+}
+
+@media (max-width: 768px) {
+  .sticky-book {
+    position: static;
+  }
+}
+
+/* Print-friendly voucher */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  .voucher-card {
+    box-shadow: none !important;
+    border: 1px solid #cbd5e1 !important;
+  }
+}
+
+/* Prose styles for CMS/tour descriptions */
+.prose-bali {
+  @apply text-slate-700 leading-relaxed text-base;
+}
+.prose-bali h1,
+.prose-bali h2 {
+  @apply text-2xl font-bold mt-8 mb-3 text-slate-900;
+}
+.prose-bali h3,
+.prose-bali h4 {
+  @apply text-xl font-semibold mt-6 mb-2 text-slate-900;
+}
+.prose-bali p {
+  @apply my-4;
+}
+.prose-bali ul {
+  @apply list-disc pl-6 my-4 space-y-1;
+}
+.prose-bali ol {
+  @apply list-decimal pl-6 my-4 space-y-1;
+}
+.prose-bali a {
+  @apply text-brand-700 underline underline-offset-2 hover:text-brand-800;
+}
+.prose-bali img {
+  @apply rounded-xl my-4 max-w-full;
+}
+.prose-bali blockquote {
+  @apply border-l-4 border-brand-400 bg-brand-50 px-4 py-3 my-4 rounded-r-lg italic text-slate-700;
+}
+.prose-bali table {
+  @apply w-full my-6 text-sm border-collapse;
+}
+.prose-bali th {
+  @apply bg-brand-700 text-white text-left px-3 py-2 font-semibold;
+}
+.prose-bali td {
+  @apply border border-slate-200 px-3 py-2;
+}
+.prose-bali pre {
+  @apply bg-slate-900 text-slate-100 rounded-lg p-4 my-4 overflow-x-auto text-sm;
+}
+.prose-bali hr {
+  @apply my-8 border-slate-200;
+}
+.prose-bali code {
+  @apply bg-slate-100 px-1.5 py-0.5 rounded text-sm text-pink-700;
+}
