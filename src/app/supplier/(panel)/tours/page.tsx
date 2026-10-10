@@ -1,108 +1,127 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { Badge, EmptyState } from "@/components/ui";
+import { Badge, ButtonLink, EmptyState, SmartImage } from "@/components/ui";
 import { formatMoney } from "@/lib/money";
 import { requireSupplierPanel, productStatusTone, statusLabel } from "@/lib/supplier";
+import { SupplierTourActions } from "@/components/SupplierTourActions";
 
 export const metadata: Metadata = { title: "Tours" };
 
 export default async function SupplierToursPage() {
   const { supplier } = await requireSupplierPanel();
 
-  const [products, bookingCounts] = await Promise.all([
-    prisma.product.findMany({
-      where: { supplierId: supplier.id },
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        name: true,
-        slug: true,
-        status: true,
-        location: true,
-        durationLabel: true,
-        durationHours: true,
-        priceAdultCents: true,
-        currency: true,
-        defaultCapacity: true,
+  const products = await prisma.product.findMany({
+    where: { supplierId: supplier.id },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      status: true,
+      location: true,
+      durationHours: true,
+      durationLabel: true,
+      priceAdultCents: true,
+      currency: true,
+      category: { select: { name: true } },
+      destination: { select: { name: true } },
+      media: {
+        orderBy: [{ isPrimary: "desc" }, { sortOrder: "asc" }],
+        take: 1,
+        select: { url: true },
       },
-    }),
-    prisma.booking.groupBy({
-      by: ["productSlug"],
-      where: { supplierId: supplier.id },
-      _count: { _all: true },
-    }),
-  ]);
-  const bookingsBySlug = new Map(bookingCounts.map((b) => [b.productSlug, b._count._all]));
+      _count: { select: { options: true, items: true } },
+    },
+  });
 
   return (
     <>
-      <div className="flex flex-wrap items-end justify-between gap-3">
+      <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="font-display text-2xl font-bold text-slate-900">Tours</h1>
+          <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Catalog</p>
+          <h1 className="font-display text-3xl font-bold text-slate-900">My tours</h1>
           <p className="mt-1 text-sm text-slate-500">
-            All {products.length} tour{products.length === 1 ? "" : "s"} listed under {supplier.companyName}.
+            {products.length} tour{products.length === 1 ? "" : "s"} in your catalogue.
           </p>
         </div>
+        <ButtonLink href="/supplier/tours/new" variant="dark">
+          + New tour
+        </ButtonLink>
       </div>
 
       {products.length === 0 ? (
         <div className="mt-6">
           <EmptyState
             title="No tours yet"
-            message="Once an admin approves and publishes your tours, they will appear here with their bookings."
+            message="Create your first tour and submit it for review — it goes live once the admin team approves it."
             icon="🧳"
+            action={
+              <ButtonLink href="/supplier/tours/new" variant="dark">
+                + New tour
+              </ButtonLink>
+            }
           />
         </div>
       ) : (
-        <div className="mt-6 overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <table className="w-full min-w-[640px] text-left text-sm">
-            <thead>
-              <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
-                <th className="px-4 py-3 font-bold">Tour</th>
-                <th className="px-4 py-3 font-bold">Duration</th>
-                <th className="px-4 py-3 text-right font-bold">Adult price</th>
-                <th className="px-4 py-3 font-bold">Status</th>
-                <th className="px-4 py-3 text-right font-bold">Bookings</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {products.map((p) => (
-                <tr key={p.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-3">
-                    <div className="font-semibold text-slate-900">{p.name}</div>
-                    <div className="text-xs text-slate-500">
-                      /{p.slug}
-                      {p.location ? ` · ${p.location}` : ""}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-slate-600">
-                    {p.durationLabel ?? `${p.durationHours} h`}
-                  </td>
-                  <td className="px-4 py-3 text-right font-semibold text-slate-900">
-                    {p.priceAdultCents > 0
-                      ? formatMoney(p.priceAdultCents, p.currency)
-                      : "—"}
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge tone={productStatusTone(p.status)}>{statusLabel(p.status)}</Badge>
-                  </td>
-                  <td className="px-4 py-3 text-right font-semibold text-slate-900">
-                    {bookingsBySlug.get(p.slug) ?? 0}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <ul className="mt-6 divide-y divide-slate-200 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          {products.map((tour) => {
+            const meta = [
+              tour.durationLabel ?? `${tour.durationHours} h`,
+              tour.category?.name,
+              tour.destination?.name,
+              tour.location,
+            ]
+              .filter(Boolean)
+              .join(" · ");
+
+            return (
+              <li key={tour.id} className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:p-5">
+                <Link
+                  href={`/supplier/tours/${tour.id}/edit`}
+                  className="relative h-20 w-full shrink-0 overflow-hidden rounded-xl sm:h-16 sm:w-24"
+                >
+                  <SmartImage
+                    src={tour.media[0]?.url}
+                    alt={tour.name}
+                    fill
+                    sizes="96px"
+                    className="object-cover"
+                  />
+                </Link>
+
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Link
+                      href={`/supplier/tours/${tour.id}/edit`}
+                      className="font-display text-lg font-bold text-slate-900 hover:text-brand-700"
+                    >
+                      {tour.name}
+                    </Link>
+                    <Badge tone={productStatusTone(tour.status)}>{statusLabel(tour.status)}</Badge>
+                  </div>
+                  {meta && <p className="mt-0.5 truncate text-sm text-slate-500">{meta}</p>}
+                  <p className="mt-1 text-xs text-slate-500">
+                    {tour._count.options} pricing option{tour._count.options === 1 ? "" : "s"}
+                    {" · "}
+                    {tour._count.items} booking{tour._count.items === 1 ? "" : "s"}
+                    {" · "}
+                    {tour.priceAdultCents > 0
+                      ? `from ${formatMoney(tour.priceAdultCents, tour.currency)}`
+                      : "no base price"}
+                  </p>
+                </div>
+
+                <SupplierTourActions tourId={tour.id} tourName={tour.name} />
+              </li>
+            );
+          })}
+        </ul>
       )}
 
       <p className="mt-4 text-xs text-slate-500">
-        Need a change? Contact support to edit, re-submit or publish a tour —
-        new listings are created and approved by the admin team.{" "}
-        <Link href="/supplier/bookings" className="font-semibold text-brand-700 hover:underline">
-          See bookings →
-        </Link>
+        Drafts stay private. Use <strong>Submit for review</strong> to send a tour to the admin team —
+        you can keep editing while it is under review.
       </p>
     </>
   );
