@@ -6,44 +6,48 @@ import { SupplierTourForm, type TourFormValues } from "@/components/SupplierTour
 
 export const metadata: Metadata = { title: "New tour" };
 
-const emptyTour: TourFormValues = {
+const emptyTour = (currency: string): TourFormValues => ({
   name: "",
   slug: "",
-  shortTitle: "",
-  subtitle: "",
+  shortDescription: "",
   description: "",
-  categoryId: "",
-  destinationId: "",
+  seoTitle: "",
+  seoDescription: "",
+  seoKeywords: "",
+  destinationLinks: [{ id: "", regions: "" }],
+  categoryLinks: [],
   location: "",
   meetingPoint: "",
   pickupInfo: "",
   durationHours: "4",
   durationLabel: "",
-  tourType: "GROUP",
+  difficulty: "EASY",
   minParticipants: "1",
   maxParticipants: "15",
-  difficulty: "EASY",
+  tourType: "GROUP",
   instantConfirm: true,
   freeCancellation: true,
   familyFriendly: true,
-  currency: "USD",
+  highlights: "",
+  inclusions: "",
+  exclusions: "",
+  whatToBring: "",
+  importantInfo: "",
+  itinerary: [],
+  faq: [],
+  currency,
   priceAdult: "",
   priceChild: "",
   priceInfant: "",
   defaultCapacity: "20",
   bookingCutoffHours: "12",
   maxAdvanceDays: "180",
-  highlights: "",
-  inclusions: "",
-  exclusions: "",
-  whatToBring: "",
-  importantInfo: "",
-  mediaUrls: [""],
   options: [],
-};
+  mediaUrls: [""],
+});
 
 export default async function NewSupplierTourPage() {
-  await requireSupplierPanel();
+  const { supplier } = await requireSupplierPanel();
 
   const [categories, destinations] = await Promise.all([
     prisma.category.findMany({
@@ -54,7 +58,7 @@ export default async function NewSupplierTourPage() {
     prisma.destination.findMany({
       where: { active: true },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-      select: { id: true, name: true },
+      select: { id: true, name: true, region: true },
     }),
   ]);
 
@@ -66,15 +70,16 @@ export default async function NewSupplierTourPage() {
       <div className="mt-3">
         <h1 className="font-display text-2xl font-bold text-slate-900">New tour</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Fill in the details and save a draft, or submit it for admin review to get it published.
+          Fill in the three tabs and save a draft, or submit it for admin review to get it published.
         </p>
       </div>
       <div className="mt-6">
         <SupplierTourForm
           mode="create"
-          initial={emptyTour}
+          initial={emptyTour(supplier.currency ?? "USD")}
           categories={categories}
           destinations={destinations}
+          preferredCurrency={supplier.currency ?? "USD"}
         />
       </div>
     </>

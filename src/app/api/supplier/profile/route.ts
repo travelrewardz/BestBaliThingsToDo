@@ -12,6 +12,11 @@ const schema = z.object({
   address: z.string().trim().max(300).optional(),
   city: z.string().trim().max(60).optional(),
   description: z.string().trim().max(2000).optional(),
+  currency: z
+    .string()
+    .trim()
+    .length(3)
+    .transform((v) => v.toUpperCase()),
 });
 
 /** Empty strings become undefined so optional columns keep their value. */
@@ -36,8 +41,9 @@ export async function PATCH(req: Request) {
         address: orUndefined(body.address),
         city: orUndefined(body.city),
         description: orUndefined(body.description),
+        currency: body.currency,
       },
-      select: { id: true, companyName: true, email: true, status: true },
+      select: { id: true, companyName: true, email: true, status: true, currency: true },
     });
 
     await audit({

@@ -129,6 +129,7 @@ export async function searchProducts(input: SearchInput) {
         category: true,
         supplier: { select: { companyName: true, slug: true } },
         media: { orderBy: [{ isPrimary: "desc" }, { sortOrder: "asc" }] },
+        options: { include: { tiers: { orderBy: { sortOrder: "asc" } } } },
       },
     });
     const ranked = candidates
@@ -158,6 +159,7 @@ export async function searchProducts(input: SearchInput) {
         category: true,
         supplier: { select: { companyName: true, slug: true } },
         media: { orderBy: [{ isPrimary: "desc" }, { sortOrder: "asc" }] },
+        options: { include: { tiers: { orderBy: { sortOrder: "asc" } } } },
       },
     }),
   ]);
@@ -187,6 +189,7 @@ export async function popularProducts(limit = 8, opts?: { category?: string; des
       category: true,
       supplier: { select: { companyName: true } },
       media: { orderBy: [{ isPrimary: "desc" }, { sortOrder: "asc" }] },
+      options: { include: { tiers: { orderBy: { sortOrder: "asc" } } } },
     },
   });
 }

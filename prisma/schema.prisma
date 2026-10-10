@@ -37,22 +37,22 @@ model User {
   updatedAt       DateTime  @updatedAt
   lastLoginAt     DateTime?
 
-  roleId          String?
-  userRole        Role?     @relation(fields: [roleId], references: [id])
+  roleId   String?
+  userRole Role?   @relation(fields: [roleId], references: [id])
 
-  supplier        Supplier?
-  sessions        Session[]
-  passwordResets  PasswordReset[]
-  bookings        Booking[]
-  reviews         Review[]
-  favorites       Favorite[]
-  notifications   Notification[]
-  auditLogs       AuditLog[]
-  blogPosts       BlogPost[]
-  media           Media[]
-  tickets         SupportTicket[]     @relation("TicketReporter")
-  ticketMessages  SupportMessage[]
-  events          AnalyticsEvent[]
+  supplier       Supplier?
+  sessions       Session[]
+  passwordResets PasswordReset[]
+  bookings       Booking[]
+  reviews        Review[]
+  favorites      Favorite[]
+  notifications  Notification[]
+  auditLogs      AuditLog[]
+  blogPosts      BlogPost[]
+  media          Media[]
+  tickets        SupportTicket[]  @relation("TicketReporter")
+  ticketMessages SupportMessage[]
+  events         AnalyticsEvent[]
 
   @@index([role])
   @@index([createdAt])
@@ -117,38 +117,39 @@ model PasswordReset {
 // ------------------------------------------------------------
 
 model Supplier {
-  id               String           @id @default(cuid())
-  userId           String           @unique
-  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  companyName      String
-  slug             String           @unique
-  description      String?
-  logoUrl          String?
-  address          String?
-  city             String?
-  country          String           @default("Indonesia")
-  email            String
-  phone            String?
-  whatsapp         String?
-  website          String?
-  businessInfo     String? // JSON: registration no., tax id, etc.
-  bankInfo         String? // JSON: bank name, account holder, account no. (never exposed to other roles)
-  status           String           @default("PENDING") // PENDING | APPROVED | REJECTED | SUSPENDED | ACTIVE | INACTIVE
+  id                String    @id @default(cuid())
+  userId            String    @unique
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyName       String
+  slug              String    @unique
+  description       String?
+  logoUrl           String?
+  address           String?
+  city              String?
+  country           String    @default("Indonesia")
+  currency          String    @default("USD") // preferred currency for this supplier's pricing
+  email             String
+  phone             String?
+  whatsapp          String?
+  website           String?
+  businessInfo      String? // JSON: registration no., tax id, etc.
+  bankInfo          String? // JSON: bank name, account holder, account no. (never exposed to other roles)
+  status            String    @default("PENDING") // PENDING | APPROVED | REJECTED | SUSPENDED | ACTIVE | INACTIVE
   commissionRateBps Int? // supplier-level commission override in basis points (1500 = 15%)
-  ratingAvg        Float            @default(0)
-  ratingCount      Int              @default(0)
-  totalBookings    Int              @default(0)
-  totalRevenueCents Int             @default(0)
-  approvedAt       DateTime?
-  rejectedReason   String?
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+  ratingAvg         Float     @default(0)
+  ratingCount       Int       @default(0)
+  totalBookings     Int       @default(0)
+  totalRevenueCents Int       @default(0)
+  approvedAt        DateTime?
+  rejectedReason    String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
-  documents        SupplierDocument[]
-  products         Product[]
-  bookings         Booking[]
-  commissions      Commission[]
-  payouts          Payout[]
+  documents   SupplierDocument[]
+  products    Product[]
+  bookings    Booking[]
+  commissions Commission[]
+  payouts     Payout[]
 
   @@index([status])
   @@index([createdAt])
@@ -173,10 +174,10 @@ model SupplierDocument {
 // ------------------------------------------------------------
 
 model Category {
-  id          String  @id @default(cuid())
+  id          String     @id @default(cuid())
   name        String
-  slug        String  @unique
-  kind        String  @default("CATEGORY") // CATEGORY | ACTIVITY (activity pages live under /activity/)
+  slug        String     @unique
+  kind        String     @default("CATEGORY") // CATEGORY | ACTIVITY (activity pages live under /activity/)
   description String?
   intro       String? // unique SEO intro copy for landing pages
   image       String?
@@ -184,17 +185,17 @@ model Category {
   parentId    String?
   parent      Category?  @relation("CategoryTree", fields: [parentId], references: [id])
   children    Category[] @relation("CategoryTree")
-  sortOrder   Int     @default(0)
-  active      Boolean @default(true)
+  sortOrder   Int        @default(0)
+  active      Boolean    @default(true)
   products    Product[]
 
   @@index([kind, active])
 }
 
 model Destination {
-  id          String  @id @default(cuid())
+  id          String    @id @default(cuid())
   name        String
-  slug        String  @unique
+  slug        String    @unique
   region      String? // e.g. "Ubud", "South Bali"
   description String?
   intro       String? // unique SEO copy for /destination/<slug> landing page
@@ -202,96 +203,104 @@ model Destination {
   image       String?
   lat         Float?
   lng         Float?
-  sortOrder   Int     @default(0)
-  active      Boolean @default(true)
+  sortOrder   Int       @default(0)
+  active      Boolean   @default(true)
   products    Product[]
 
   @@index([active])
 }
 
 model Product {
-  id                String   @id @default(cuid())
-  supplierId        String
-  supplier          Supplier @relation(fields: [supplierId], references: [id])
-  slug              String   @unique
-  name              String
-  shortTitle        String?
-  subtitle          String?
-  description       String // markdown/rich content
-  categoryId        String?
-  category          Category? @relation(fields: [categoryId], references: [id])
-  destinationId     String?
-  destination       Destination? @relation(fields: [destinationId], references: [id])
+  id               String       @id @default(cuid())
+  supplierId       String
+  supplier         Supplier     @relation(fields: [supplierId], references: [id])
+  slug             String       @unique
+  name             String
+  shortTitle       String?
+  subtitle         String?
+  description      String // markdown/rich content (full description)
+  shortDescription String? // short description for cards / listings
+  seoTitle         String? // SEO <title>
+  seoDescription   String? // SEO meta description
+  seoKeywords      String? // SEO meta keywords (comma separated)
+  categoryId       String?
+  category         Category?    @relation(fields: [categoryId], references: [id])
+  destinationId    String? // primary destination (first of destinationLinks)
+  destination      Destination? @relation(fields: [destinationId], references: [id])
+  // JSON [{ id, regions: string[] }] — multiple destinations w/ regions for multi-day tours
+  destinationLinks String       @default("[]")
+  // JSON string[] of Category ids — multiple categories
+  categoryLinks    String       @default("[]")
 
   // Logistics
-  location          String?
-  meetingPoint      String?
-  pickupInfo        String?
-  pickupLocations   String? // JSON array of pickup zones
-  durationHours     Float    @default(1)
-  durationLabel     String? // e.g. "Half day (4 hours)"
-  languages         String   @default("[]") // JSON array
-  tourType          String   @default("GROUP") // GROUP | PRIVATE
-  minParticipants   Int      @default(1)
-  maxParticipants   Int      @default(15)
-  ageRestriction    String?
-  difficulty        String   @default("EASY") // EASY | MODERATE | CHALLENGING
-  instantConfirm    Boolean  @default(true)
-  freeCancellation  Boolean  @default(true)
+  location           String?
+  meetingPoint       String?
+  pickupInfo         String?
+  pickupLocations    String? // JSON array of pickup zones
+  durationHours      Float   @default(1)
+  durationLabel      String? // e.g. "Half day (4 hours)"
+  languages          String  @default("[]") // JSON array
+  tourType           String  @default("GROUP") // GROUP | PRIVATE
+  minParticipants    Int     @default(1)
+  maxParticipants    Int     @default(15)
+  ageRestriction     String?
+  difficulty         String  @default("EASY") // EASY | MODERATE | CHALLENGING
+  instantConfirm     Boolean @default(true)
+  freeCancellation   Boolean @default(true)
   cancellationPolicy String?
-  familyFriendly    Boolean  @default(true)
+  familyFriendly     Boolean @default(true)
 
   // Pricing (integer cents, base currency)
-  currency          String   @default("USD")
-  priceAdultCents   Int      @default(0)
-  priceChildCents   Int      @default(0)
-  priceInfantCents  Int      @default(0)
-  privateGroupCents Int?
+  currency            String @default("USD")
+  priceAdultCents     Int    @default(0)
+  priceChildCents     Int    @default(0)
+  priceInfantCents    Int    @default(0)
+  privateGroupCents   Int?
   singleTravelerCents Int?
-  supplierCostCents Int? // supplier's cost basis (internal)
-  commissionRateBps Int? // product-level commission override
-  weekendRateBps    Int      @default(0) // surcharge in basis points
+  supplierCostCents   Int? // supplier's cost basis (internal)
+  commissionRateBps   Int? // product-level commission override
+  weekendRateBps      Int    @default(0) // surcharge in basis points
 
   // Content
-  highlights        String   @default("[]") // JSON array of strings
-  itinerary         String   @default("[]") // JSON array of {time,title,text}
-  inclusions        String   @default("[]")
-  exclusions        String   @default("[]")
-  whatToBring       String   @default("[]")
-  importantInfo     String?
-  terms             String?
-  faq               String   @default("[]") // JSON array of {q,a}
+  highlights    String  @default("[]") // JSON array of strings
+  itinerary     String  @default("[]") // JSON array of {time,title,text}
+  inclusions    String  @default("[]")
+  exclusions    String  @default("[]")
+  whatToBring   String  @default("[]")
+  importantInfo String?
+  terms         String?
+  faq           String  @default("[]") // JSON array of {q,a}
 
   // Availability
-  defaultCapacity   Int      @default(20)
-  bookingCutoffHours Int     @default(12) // min lead time in hours
-  maxAdvanceDays    Int      @default(180) // how far ahead bookings are allowed
+  defaultCapacity    Int @default(20)
+  bookingCutoffHours Int @default(12) // min lead time in hours
+  maxAdvanceDays     Int @default(180) // how far ahead bookings are allowed
 
   // Workflow
-  status            String   @default("DRAFT") // DRAFT | SUBMITTED | IN_REVIEW | CHANGES_REQUESTED | REJECTED | APPROVED | PUBLISHED | UNPUBLISHED
-  adminNote         String?
-  submittedAt       DateTime?
-  approvedAt        DateTime?
-  publishedAt       DateTime?
+  status      String    @default("DRAFT") // DRAFT | SUBMITTED | IN_REVIEW | CHANGES_REQUESTED | REJECTED | APPROVED | PUBLISHED | UNPUBLISHED
+  adminNote   String?
+  submittedAt DateTime?
+  approvedAt  DateTime?
+  publishedAt DateTime?
 
   // Stats
-  viewCount         Int      @default(0)
-  bookingCount      Int      @default(0)
-  ratingAvg         Float    @default(0)
-  ratingCount       Int      @default(0)
+  viewCount    Int   @default(0)
+  bookingCount Int   @default(0)
+  ratingAvg    Float @default(0)
+  ratingCount  Int   @default(0)
 
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  options           ProductOption[]
-  media             ProductMedia[]
-  rules             AvailabilityRule[]
-  overrides         AvailabilityOverride[]
-  days              AvailabilityDay[]
-  priceRules        PriceRule[]
-  items             BookingItem[]
-  reviews           Review[]
-  favorites         Favorite[]
+  options    ProductOption[]
+  media      ProductMedia[]
+  rules      AvailabilityRule[]
+  overrides  AvailabilityOverride[]
+  days       AvailabilityDay[]
+  priceRules PriceRule[]
+  items      BookingItem[]
+  reviews    Review[]
+  favorites  Favorite[]
 
   @@index([supplierId, status])
   @@index([categoryId])
@@ -301,21 +310,38 @@ model Product {
 }
 
 model ProductOption {
-  id                String   @id @default(cuid())
-  productId         String
-  product           Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  name              String // e.g. "Morning departure"
-  startTime         String? // e.g. "09:00"
-  description       String?
-  priceAdultCents   Int? // override; falls back to product price
-  priceChildCents   Int?
-  priceInfantCents  Int?
-  capacityOffset    Int      @default(0) // added to default capacity
-  sortOrder         Int      @default(0)
-  active            Boolean  @default(true)
-  bookingItems      BookingItem[]
+  id               String        @id @default(cuid())
+  productId        String
+  product          Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  name             String // e.g. "Morning departure"
+  startTime        String? // e.g. "09:00"
+  description      String?
+  priceAdultCents  Int? // override; falls back to product price
+  priceChildCents  Int?
+  priceInfantCents Int?
+  capacityOffset   Int           @default(0) // added to default capacity
+  agentNetBps      Int? // agent/member net discount in basis points (e.g. 1000 = 10% off); null = no agent discount
+  sortOrder        Int           @default(0)
+  active           Boolean       @default(true)
+  bookingItems     BookingItem[]
+  tiers            OptionTier[]
 
   @@index([productId, active])
+}
+
+// Price tier of a pricing option, e.g. "2 travellers" / "Group of 4+".
+// The lowest tier price is surfaced on cards with the base price struck through.
+model OptionTier {
+  id         String        @id @default(cuid())
+  optionId   String
+  option     ProductOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  label      String // e.g. "1-2 travellers"
+  minPax     Int           @default(1)
+  maxPax     Int?
+  priceCents Int           @default(0) // price per person in the product currency
+  sortOrder  Int           @default(0)
+
+  @@index([optionId, sortOrder])
 }
 
 model ProductMedia {
@@ -334,13 +360,13 @@ model ProductMedia {
 
 // Weekly availability pattern (one row per weekday; weekday 0=Sun..6=Sat, or null = every day)
 model AvailabilityRule {
-  id         String   @id @default(cuid())
-  productId  String
-  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  weekday    Int? // null = applies to all days
-  capacity   Int
-  active     Boolean  @default(true)
-  createdAt  DateTime @default(now())
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  weekday   Int? // null = applies to all days
+  capacity  Int
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
 
   @@index([productId, weekday])
 }
@@ -374,16 +400,16 @@ model AvailabilityDay {
 
 // Seasonal / weekend / holiday price surcharges
 model PriceRule {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   productId    String
-  product      Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product      Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
   name         String // e.g. "High season", "Public holiday"
-  type         String   @default("SEASONAL") // SEASONAL | WEEKEND | HOLIDAY
+  type         String    @default("SEASONAL") // SEASONAL | WEEKEND | HOLIDAY
   dateFrom     DateTime?
   dateTo       DateTime?
   weekdays     String? // JSON array of weekdays it applies to, e.g. [0,6]
-  surchargeBps Int      @default(0) // basis points added to price
-  active       Boolean  @default(true)
+  surchargeBps Int       @default(0) // basis points added to price
+  active       Boolean   @default(true)
 
   @@index([productId, active])
 }
@@ -393,61 +419,61 @@ model PriceRule {
 // ------------------------------------------------------------
 
 model Booking {
-  id             String    @id @default(cuid())
-  reference      String    @unique // BTD-2026-000123
-  customerId     String
-  customer       User      @relation(fields: [customerId], references: [id])
-  supplierId     String
-  supplier       Supplier  @relation(fields: [supplierId], references: [id])
+  id         String   @id @default(cuid())
+  reference  String   @unique // BTD-2026-000123
+  customerId String
+  customer   User     @relation(fields: [customerId], references: [id])
+  supplierId String
+  supplier   Supplier @relation(fields: [supplierId], references: [id])
 
   // Snapshot of tour info at booking time
-  productSlug    String
-  productName    String
-  productImage   String?
+  productSlug  String
+  productName  String
+  productImage String?
 
-  status         String    @default("PENDING") // PENDING | AWAITING_PAYMENT | PAID | CONFIRMED | SUPPLIER_CONFIRMATION_REQUIRED | COMPLETED | CANCELLED | REFUND_REQUESTED | REFUNDED | NO_SHOW
-  tourDate       DateTime
-  tourTime       String?
-  pickupLocation String?
+  status          String   @default("PENDING") // PENDING | AWAITING_PAYMENT | PAID | CONFIRMED | SUPPLIER_CONFIRMATION_REQUIRED | COMPLETED | CANCELLED | REFUND_REQUESTED | REFUNDED | NO_SHOW
+  tourDate        DateTime
+  tourTime        String?
+  pickupLocation  String?
   specialRequests String?
 
   // Customer contact snapshot (visible to that supplier + admin only)
   customerName   String
   customerEmail  String
   customerPhone  String?
-  customerUserId String?   // set when booked by a logged-in user (same as customerId when registered)
+  customerUserId String? // set when booked by a logged-in user (same as customerId when registered)
 
-  adults         Int       @default(1)
-  children       Int       @default(0)
-  infants        Int       @default(0)
-  totalTravelers Int       @default(1)
+  adults         Int @default(1)
+  children       Int @default(0)
+  infants        Int @default(0)
+  totalTravelers Int @default(1)
 
-  subtotalCents  Int       @default(0)
-  discountCents  Int       @default(0)
-  totalCents     Int       @default(0)
-  currency       String    @default("USD")
-  couponCode     String?
-  promotionId    String?
+  subtotalCents Int     @default(0)
+  discountCents Int     @default(0)
+  totalCents    Int     @default(0)
+  currency      String  @default("USD")
+  couponCode    String?
+  promotionId   String?
 
-  commissionRateBps    Int   @default(1500)
-  commissionCents      Int   @default(0)
-  supplierEarningsCents Int  @default(0)
+  commissionRateBps     Int @default(1500)
+  commissionCents       Int @default(0)
+  supplierEarningsCents Int @default(0)
 
-  cancelReason   String?
-  cancelledAt    DateTime?
-  confirmedAt    DateTime?
-  completedAt    DateTime?
-  reminderSentAt DateTime?
+  cancelReason      String?
+  cancelledAt       DateTime?
+  confirmedAt       DateTime?
+  completedAt       DateTime?
+  reminderSentAt    DateTime?
   reviewRequestedAt DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
-  items          BookingItem[]
-  payments       Payment[]
-  refund         Refund?
-  commission     Commission?
-  review         Review?
-  voucherCode    String?
+  items       BookingItem[]
+  payments    Payment[]
+  refund      Refund?
+  commission  Commission?
+  review      Review?
+  voucherCode String?
 
   @@index([supplierId, status])
   @@index([customerId, createdAt])
@@ -456,24 +482,24 @@ model Booking {
 }
 
 model BookingItem {
-  id             String   @id @default(cuid())
-  bookingId      String
-  booking        Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  productId      String
-  product        Product  @relation(fields: [productId], references: [id])
-  optionId       String?
-  option         ProductOption? @relation(fields: [optionId], references: [id])
-  itemName       String
-  itemSlug       String
-  date           DateTime
-  adults         Int      @default(1)
-  children       Int      @default(0)
-  infants        Int      @default(0)
-  seats          Int      @default(1)
-  unitAdultCents Int      @default(0)
-  unitChildCents Int      @default(0)
-  unitInfantCents Int     @default(0)
-  lineTotalCents Int      @default(0)
+  id              String         @id @default(cuid())
+  bookingId       String
+  booking         Booking        @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  productId       String
+  product         Product        @relation(fields: [productId], references: [id])
+  optionId        String?
+  option          ProductOption? @relation(fields: [optionId], references: [id])
+  itemName        String
+  itemSlug        String
+  date            DateTime
+  adults          Int            @default(1)
+  children        Int            @default(0)
+  infants         Int            @default(0)
+  seats           Int            @default(1)
+  unitAdultCents  Int            @default(0)
+  unitChildCents  Int            @default(0)
+  unitInfantCents Int            @default(0)
+  lineTotalCents  Int            @default(0)
 
   @@index([bookingId])
   @@index([productId, date])
@@ -488,7 +514,7 @@ model Payment {
   amountCents Int       @default(0)
   currency    String    @default("USD")
   externalId  String? // provider reference / payment intent id
-  meta        String?   // JSON payload from provider
+  meta        String? // JSON payload from provider
   createdAt   DateTime  @default(now())
   paidAt      DateTime?
   failedAt    DateTime?
@@ -500,15 +526,15 @@ model Payment {
 }
 
 model Refund {
-  id          String   @id @default(cuid())
-  bookingId   String   @unique
-  booking     Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  id          String    @id @default(cuid())
+  bookingId   String    @unique
+  booking     Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   amountCents Int
   reason      String?
-  status      String   @default("REQUESTED") // REQUESTED | APPROVED | REJECTED | PROCESSED
+  status      String    @default("REQUESTED") // REQUESTED | APPROVED | REJECTED | PROCESSED
   requestedBy String? // user id
   processedAt DateTime?
-  createdAt   DateTime @default(now())
+  createdAt   DateTime  @default(now())
 }
 
 // ------------------------------------------------------------
@@ -516,31 +542,31 @@ model Refund {
 // ------------------------------------------------------------
 
 model Commission {
-  id             String   @id @default(cuid())
-  bookingId      String   @unique
-  booking        Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  supplierId     String
-  supplier       Supplier @relation(fields: [supplierId], references: [id])
-  grossCents     Int
-  rateBps        Int
-  platformCents  Int
-  supplierCents  Int
-  currency       String   @default("USD")
-  payoutId       String?
-  payout         Payout?  @relation(fields: [payoutId], references: [id])
-  createdAt      DateTime @default(now())
+  id            String   @id @default(cuid())
+  bookingId     String   @unique
+  booking       Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  supplierId    String
+  supplier      Supplier @relation(fields: [supplierId], references: [id])
+  grossCents    Int
+  rateBps       Int
+  platformCents Int
+  supplierCents Int
+  currency      String   @default("USD")
+  payoutId      String?
+  payout        Payout?  @relation(fields: [payoutId], references: [id])
+  createdAt     DateTime @default(now())
 
   @@index([supplierId, payoutId])
   @@index([createdAt])
 }
 
 model Payout {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   supplierId  String
-  supplier    Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  supplier    Supplier  @relation(fields: [supplierId], references: [id], onDelete: Cascade)
   amountCents Int
-  currency    String   @default("USD")
-  status      String   @default("PENDING") // PENDING | APPROVED | PAID | REJECTED
+  currency    String    @default("USD")
+  status      String    @default("PENDING") // PENDING | APPROVED | PAID | REJECTED
   reference   String? // bank transfer reference
   note        String?
   periodFrom  DateTime?
@@ -548,8 +574,8 @@ model Payout {
   approvedAt  DateTime?
   paidAt      DateTime?
   createdById String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   commissions Commission[]
   items       PayoutItem[]
@@ -559,13 +585,13 @@ model Payout {
 
 // Line-level history for exported payout reports
 model PayoutItem {
-  id           String    @id @default(cuid())
-  payoutId     String
-  payout       Payout    @relation(fields: [payoutId], references: [id], onDelete: Cascade)
-  bookingRef   String
-  productName  String
-  grossCents   Int
-  rateBps      Int
+  id            String @id @default(cuid())
+  payoutId      String
+  payout        Payout @relation(fields: [payoutId], references: [id], onDelete: Cascade)
+  bookingRef    String
+  productName   String
+  grossCents    Int
+  rateBps       Int
   supplierCents Int
 
   @@index([payoutId])
@@ -584,8 +610,8 @@ model Coupon {
   usageLimit       Int? // total usage cap
   usedCount        Int       @default(0)
   perUserLimit     Int       @default(1)
-  supplierIds      String?   // JSON array of supplier ids (null = all)
-  productIds       String?   // JSON array of product ids (null = all)
+  supplierIds      String? // JSON array of supplier ids (null = all)
+  productIds       String? // JSON array of product ids (null = all)
   active           Boolean   @default(true)
   createdBy        String?
   createdAt        DateTime  @default(now())
@@ -594,39 +620,39 @@ model Coupon {
 }
 
 model Promotion {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   name        String
-  type        String   @default("SEASONAL") // EARLY_BIRD | LAST_MINUTE | SEASONAL | SUPPLIER_SPECIFIC | PRODUCT_SPECIFIC
-  discountBps Int      @default(0)
+  type        String    @default("SEASONAL") // EARLY_BIRD | LAST_MINUTE | SEASONAL | SUPPLIER_SPECIFIC | PRODUCT_SPECIFIC
+  discountBps Int       @default(0)
   dateFrom    DateTime?
   dateTo      DateTime?
   leadDaysMin Int? // EARLY_BIRD: book at least N days ahead
   leadDaysMax Int? // LAST_MINUTE: book within N days
   supplierIds String? // JSON array
   productIds  String? // JSON array
-  active      Boolean  @default(true)
-  createdAt   DateTime @default(now())
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
 }
 
 model Review {
-  id          String   @id @default(cuid())
-  bookingId   String   @unique
-  booking     Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  productId   String
-  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  customerId  String
-  customer    User     @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  rating      Int // 1..5
-  title       String?
-  body        String
+  id            String   @id @default(cuid())
+  bookingId     String   @unique
+  booking       Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  productId     String
+  product       Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  customerId    String
+  customer      User     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  rating        Int // 1..5
+  title         String?
+  body          String
   serviceRating Int?
-  guideRating  Int?
-  valueRating  Int?
-  photos      String? // JSON array of urls
-  status      String   @default("PENDING") // PENDING | APPROVED | HIDDEN | FLAGGED
-  adminNote   String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  guideRating   Int?
+  valueRating   Int?
+  photos        String? // JSON array of urls
+  status        String   @default("PENDING") // PENDING | APPROVED | HIDDEN | FLAGGED
+  adminNote     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   @@index([productId, status])
   @@index([status, createdAt])
@@ -683,21 +709,21 @@ model EmailOutbox {
 // ------------------------------------------------------------
 
 model BlogPost {
-  id             String    @id @default(cuid())
-  title          String
-  slug           String    @unique
-  excerpt        String?
-  content        String // markdown
-  featuredImage  String?
-  authorId       String?
-  author         User?     @relation(fields: [authorId], references: [id])
-  category       String?
-  tags           String    @default("[]") // JSON array
-  status         String    @default("DRAFT") // DRAFT | PUBLISHED
-  publishedAt    DateTime?
-  viewCount      Int       @default(0)
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id            String    @id @default(cuid())
+  title         String
+  slug          String    @unique
+  excerpt       String?
+  content       String // markdown
+  featuredImage String?
+  authorId      String?
+  author        User?     @relation(fields: [authorId], references: [id])
+  category      String?
+  tags          String    @default("[]") // JSON array
+  status        String    @default("DRAFT") // DRAFT | PUBLISHED
+  publishedAt   DateTime?
+  viewCount     Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   @@index([status, publishedAt])
 }
@@ -746,15 +772,15 @@ model SeoMeta {
 }
 
 model SeoSetting {
-  id                 String  @id @default(cuid())
-  key                String  @unique // "site"
-  siteTitle          String  @default("Bali Things To Do")
-  siteDescription    String  @default("Discover the best tours, activities, adventures and experiences in Bali.")
-  defaultTitleSuffix String  @default("| Bali Things To Do")
+  id                 String   @id @default(cuid())
+  key                String   @unique // "site"
+  siteTitle          String   @default("Bali Things To Do")
+  siteDescription    String   @default("Discover the best tours, activities, adventures and experiences in Bali.")
+  defaultTitleSuffix String   @default("| Bali Things To Do")
   defaultDescription String?
-  canonicalBase      String  @default("https://www.balithingstodo.net")
+  canonicalBase      String   @default("https://www.balithingstodo.net")
   robotsTxt          String?
-  noindex            Boolean @default(false)
+  noindex            Boolean  @default(false)
   googleVerification String?
   bingVerification   String?
   analyticsId        String?
@@ -765,23 +791,23 @@ model SeoSetting {
 }
 
 model LandingPage {
-  id           String   @id @default(cuid())
-  slug         String   @unique // e.g. "ubud-tours", "bali-atv"
-  kind         String   @default("REGION") // REGION | ACTIVITY | COLLECTION | CUSTOM
-  title        String
-  heading      String
-  intro        String // unique intro copy (markdown)
-  highlights   String   @default("[]") // JSON array
-  faq          String   @default("[]") // JSON array of {q,a}
-  relatedDestinationIds String @default("[]")
-  relatedCategoryIds    String @default("[]")
-  heroImage    String?
-  ctaText      String   @default("View all experiences")
-  status       String   @default("PUBLISHED") // DRAFT | PUBLISHED
-  autoNoindex  Boolean  @default(false) // thin content => noindex
-  sortOrder    Int      @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                    String   @id @default(cuid())
+  slug                  String   @unique // e.g. "ubud-tours", "bali-atv"
+  kind                  String   @default("REGION") // REGION | ACTIVITY | COLLECTION | CUSTOM
+  title                 String
+  heading               String
+  intro                 String // unique intro copy (markdown)
+  highlights            String   @default("[]") // JSON array
+  faq                   String   @default("[]") // JSON array of {q,a}
+  relatedDestinationIds String   @default("[]")
+  relatedCategoryIds    String   @default("[]")
+  heroImage             String?
+  ctaText               String   @default("View all experiences")
+  status                String   @default("PUBLISHED") // DRAFT | PUBLISHED
+  autoNoindex           Boolean  @default(false) // thin content => noindex
+  sortOrder             Int      @default(0)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 }
 
 model Banner {
@@ -818,8 +844,8 @@ model Setting {
 }
 
 model Translation {
-  id         String @id @default(cuid())
-  locale     String @default("en")
+  id         String  @id @default(cuid())
+  locale     String  @default("en")
   entityType String // e.g. UI | PRODUCT | PAGE
   entityId   String?
   field      String
@@ -854,51 +880,51 @@ model AuditLog {
 }
 
 model SupportTicket {
-  id          String   @id @default(cuid())
-  reference   String   @unique // SUP-2026-0001
-  subject     String
-  message     String
-  email       String
-  name        String?
-  userId      String?
-  reporter    User?    @relation("TicketReporter", fields: [userId], references: [id])
-  category    String   @default("GENERAL") // GENERAL | BOOKING | SUPPLIER | TECHNICAL | PAYMENT
-  status      String   @default("OPEN") // OPEN | IN_PROGRESS | WAITING | RESOLVED | CLOSED
-  priority    String   @default("NORMAL") // LOW | NORMAL | HIGH
-  assignedTo  String?
-  adminNote   String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id         String   @id @default(cuid())
+  reference  String   @unique // SUP-2026-0001
+  subject    String
+  message    String
+  email      String
+  name       String?
+  userId     String?
+  reporter   User?    @relation("TicketReporter", fields: [userId], references: [id])
+  category   String   @default("GENERAL") // GENERAL | BOOKING | SUPPLIER | TECHNICAL | PAYMENT
+  status     String   @default("OPEN") // OPEN | IN_PROGRESS | WAITING | RESOLVED | CLOSED
+  priority   String   @default("NORMAL") // LOW | NORMAL | HIGH
+  assignedTo String?
+  adminNote  String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-  messages    SupportMessage[]
+  messages SupportMessage[]
 
   @@index([status, createdAt])
 }
 
 model SupportMessage {
-  id        String        @id @default(cuid())
-  ticketId  String
-  ticket    SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  authorId  String?
-  author    User?         @relation(fields: [authorId], references: [id])
+  id          String        @id @default(cuid())
+  ticketId    String
+  ticket      SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  authorId    String?
+  author      User?         @relation(fields: [authorId], references: [id])
   authorLabel String
-  body      String
-  internal  Boolean       @default(false) // admin-only note
-  createdAt DateTime      @default(now())
+  body        String
+  internal    Boolean       @default(false) // admin-only note
+  createdAt   DateTime      @default(now())
 
   @@index([ticketId, createdAt])
 }
 
 model AnalyticsEvent {
-  id        String   @id @default(cuid())
-  name      String // page_view | search | product_view | add_to_booking | checkout | purchase | cancellation
-  path      String?
-  userId    String?
-  user      User?    @relation(fields: [userId], references: [id])
-  sessionId String?
+  id         String   @id @default(cuid())
+  name       String // page_view | search | product_view | add_to_booking | checkout | purchase | cancellation
+  path       String?
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id])
+  sessionId  String?
   valueCents Int?
-  meta      String? // JSON
-  createdAt DateTime @default(now())
+  meta       String? // JSON
+  createdAt  DateTime @default(now())
 
   @@index([name, createdAt])
   @@index([createdAt])

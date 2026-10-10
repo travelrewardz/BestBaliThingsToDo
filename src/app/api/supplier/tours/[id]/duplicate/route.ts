@@ -13,7 +13,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     const source = await prisma.product.findFirst({
       where: { id, supplierId: user.supplierId },
       include: {
-        options: { orderBy: { sortOrder: "asc" } },
+        options: { orderBy: { sortOrder: "asc" }, include: { tiers: { orderBy: { sortOrder: "asc" } } } },
         media: { orderBy: { sortOrder: "asc" } },
       },
     });
@@ -28,11 +28,15 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
           supplierId: source.supplierId,
           slug,
           name,
-          shortTitle: source.shortTitle,
-          subtitle: source.subtitle,
+          shortDescription: source.shortDescription,
           description: source.description,
+          seoTitle: source.seoTitle,
+          seoDescription: source.seoDescription,
+          seoKeywords: source.seoKeywords,
           categoryId: source.categoryId,
+          categoryLinks: source.categoryLinks,
           destinationId: source.destinationId,
+          destinationLinks: source.destinationLinks,
           location: source.location,
           meetingPoint: source.meetingPoint,
           pickupInfo: source.pickupInfo,
@@ -78,8 +82,18 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
               priceChildCents: o.priceChildCents,
               priceInfantCents: o.priceInfantCents,
               capacityOffset: o.capacityOffset,
+              agentNetBps: o.agentNetBps,
               sortOrder: i,
               active: o.active,
+              tiers: {
+                create: o.tiers.map((t, ti) => ({
+                  label: t.label,
+                  minPax: t.minPax,
+                  maxPax: t.maxPax,
+                  priceCents: t.priceCents,
+                  sortOrder: ti,
+                })),
+              },
             })),
           },
           media: {

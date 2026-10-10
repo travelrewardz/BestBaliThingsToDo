@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Field, Input, Textarea, Button, Alert } from "@/components/ui";
+import { Field, Input, Select, Textarea, Button, Alert } from "@/components/ui";
+import { CURRENCIES } from "@/lib/tour-schema";
 
 type ProfileValues = {
   companyName: string;
@@ -13,6 +14,7 @@ type ProfileValues = {
   address: string;
   city: string;
   description: string;
+  currency: string;
 };
 
 /** Supplier profile editor — PATCHes /api/supplier/profile. */
@@ -24,7 +26,7 @@ export function SupplierProfileForm({ initial }: { initial: ProfileValues }) {
   const [error, setError] = useState<string | null>(null);
 
   const set = (key: keyof ProfileValues) => (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
     setValues((v) => ({ ...v, [key]: e.target.value }));
     setSaved(false);
@@ -107,6 +109,20 @@ export function SupplierProfileForm({ initial }: { initial: ProfileValues }) {
         </Field>
         <Field label="City / area" htmlFor="city">
           <Input id="city" value={values.city} onChange={set("city")} placeholder="e.g. Ubud" />
+        </Field>
+        <Field
+          label="Preferred currency"
+          htmlFor="currency"
+          hint="Used by default for the pricing of every new tour you create."
+          required
+        >
+          <Select id="currency" value={values.currency} onChange={set("currency")}>
+            {CURRENCIES.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </Select>
         </Field>
         <Field label="Address" htmlFor="address" className="sm:col-span-2">
           <Input id="address" value={values.address} onChange={set("address")} />

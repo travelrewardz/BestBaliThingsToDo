@@ -9,6 +9,8 @@ import {
   uniqueTourSlug,
   syncTourChildren,
   nextTourStatus,
+  assertTourRefs,
+  tourRefIds,
 } from "@/lib/tours";
 
 /** Loads a tour owned by this supplier, or throws 404. */
@@ -19,7 +21,7 @@ async function requireOwnedTour(productId: string, supplierId: string) {
 }
 
 /**
- * PATCH /api/supplier/tours/[id] — update a tour's content, pricing options and media.
+ * PATCH /api/supplier/tours/[id] — update a tour's content, pricing options, tiers and media.
  * `submit: true` moves a draft / rejected tour back into admin review.
  */
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -33,6 +35,8 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     if (input.maxParticipants < input.minParticipants) {
       throw new ApiError(400, "Maximum participants must be at least the minimum", "validation");
     }
+    const { categoryIds, destinationIds } = tourRefIds(input);
+    await assertTourRefs(categoryIds, destinationIds);
 
     const slug = input.slug && input.slug !== existing.slug
       ? await uniqueTourSlug(input.slug, existing.id)

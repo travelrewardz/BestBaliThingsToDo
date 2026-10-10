@@ -3,22 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { audit } from "@/lib/audit";
 import { notifyRole } from "@/lib/notifications";
 import { tourSchema } from "@/lib/tour-schema";
-import { tourProductData, uniqueTourSlug, syncTourChildren } from "@/lib/tours";
-
-/** Ensures optional category/destination references exist before writing them. */
-async function assertRefsExist(categoryId?: string, destinationId?: string) {
-  if (categoryId) {
-    const category = await prisma.category.findUnique({ where: { id: categoryId }, select: { id: true } });
-    if (!category) throw new ApiError(400, "Unknown category", "validation");
-  }
-  if (destinationId) {
-    const destination = await prisma.destination.findUnique({
-      where: { id: destinationId },
-      select: { id: true },
-    });
-    if (!destination) throw new ApiError(400, "Unknown destination", "validation");
-  }
-}
+import { tourProductData, uniqueTourSlug, syncTourChildren, assertTourRefs, tourRefIds } from "@/lib/tours";
 
 /**
  * POST /api/supplier/tours — create a tour for the signed-in supplier.
@@ -33,7 +18,8 @@ export async function POST(req: Request) {
     if (input.maxParticipants < input.minParticipants) {
       throw new ApiError(400, "Maximum participants must be at least the minimum", "validation");
     }
-    await assertRefsExist(input.categoryId, input.destinationId);
+    const { categoryIds, destinationIds } = tourRefIds(input);
+    await assertTourRefs(categoryIds, destinationIds);
 
     const slug = await uniqueTourSlug(input.slug ?? input.name);
     const submit = input.submit;

@@ -2,12 +2,14 @@ import Link from "next/link";
 import { SmartImage, Badge, Stars } from "@/components/ui";
 import { FavoriteButton } from "@/components/FavoriteButton";
 import { formatMoney } from "@/lib/money";
+import { effectiveFromPriceCents } from "@/lib/tours";
 
 export type TourCardData = {
   id: string;
   slug: string;
   name: string;
   shortTitle?: string | null;
+  shortDescription?: string | null;
   priceAdultCents: number;
   currency: string;
   durationLabel?: string | null;
@@ -21,10 +23,12 @@ export type TourCardData = {
   media?: { url: string; alt: string | null; isPrimary: boolean; sortOrder: number }[];
   destination?: { name: string; slug: string } | null;
   supplier?: { companyName: string } | null;
+  options?: { priceAdultCents: number | null; tiers?: { priceCents: number }[] }[];
 };
 
 export function TourCard({ tour, priority = false }: { tour: TourCardData; priority?: boolean }) {
   const image = tour.media?.[0]?.url;
+  const effective = effectiveFromPriceCents(tour.priceAdultCents, tour.options);
   const duration =
     tour.durationLabel ||
     (tour.durationHours >= 24
@@ -80,7 +84,12 @@ export function TourCard({ tour, priority = false }: { tour: TourCardData; prior
           <div>
             <p className="text-[11px] uppercase tracking-wide text-slate-400">From</p>
             <p className="text-lg font-extrabold text-brand-800">
-              {formatMoney(tour.priceAdultCents, tour.currency)}
+              {effective < tour.priceAdultCents && (
+                <span className="mr-1.5 text-sm font-semibold text-slate-400 line-through">
+                  {formatMoney(tour.priceAdultCents, tour.currency)}
+                </span>
+              )}
+              {formatMoney(effective, tour.currency)}
               <span className="text-xs font-medium text-slate-500"> / adult</span>
             </p>
           </div>

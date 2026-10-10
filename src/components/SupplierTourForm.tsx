@@ -1,9 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Alert, Badge, Button, Field, Input, Select, Textarea } from "@/components/ui";
-import { parseMoneyInput } from "@/lib/money";
+import { formatMoney, parseMoneyInput } from "@/lib/money";
+import { CURRENCIES } from "@/lib/tour-schema";
+
+export type TourTierRow = {
+  id?: string;
+  label: string;
+  minPax: string;
+  maxPax: string;
+  price: string;
+};
 
 export type TourOptionRow = {
   id?: string;
@@ -14,29 +23,47 @@ export type TourOptionRow = {
   priceChild: string;
   priceInfant: string;
   capacityOffset: string;
+  agentNet: string; // percent, e.g. "10" = 10% agent/member discount
   active: boolean;
+  tiers: TourTierRow[];
 };
 
+export type DestinationLinkRow = { id: string; regions: string }; // regions: comma separated in the UI
+export type ItineraryRow = { time: string; title: string; text: string };
+export type FaqRow = { q: string; a: string };
+
 export type TourFormValues = {
+  // General
   name: string;
   slug: string;
-  shortTitle: string;
-  subtitle: string;
+  shortDescription: string;
   description: string;
-  categoryId: string;
-  destinationId: string;
+  seoTitle: string;
+  seoDescription: string;
+  seoKeywords: string;
+  destinationLinks: DestinationLinkRow[];
+  categoryLinks: string[];
   location: string;
   meetingPoint: string;
   pickupInfo: string;
   durationHours: string;
   durationLabel: string;
-  tourType: "GROUP" | "PRIVATE";
+  difficulty: "EASY" | "MODERATE" | "CHALLENGING";
   minParticipants: string;
   maxParticipants: string;
-  difficulty: "EASY" | "MODERATE" | "CHALLENGING";
+  tourType: "GROUP" | "PRIVATE";
   instantConfirm: boolean;
   freeCancellation: boolean;
   familyFriendly: boolean;
+  // Highlights & itinerary
+  highlights: string;
+  inclusions: string;
+  exclusions: string;
+  whatToBring: string;
+  importantInfo: string;
+  itinerary: ItineraryRow[];
+  faq: FaqRow[];
+  // Pricing & availability
   currency: string;
   priceAdult: string;
   priceChild: string;
@@ -44,18 +71,20 @@ export type TourFormValues = {
   defaultCapacity: string;
   bookingCutoffHours: string;
   maxAdvanceDays: string;
-  highlights: string;
-  inclusions: string;
-  exclusions: string;
-  whatToBring: string;
-  importantInfo: string;
-  mediaUrls: string[];
   options: TourOptionRow[];
+  mediaUrls: string[];
 };
 
 type Ref = { id: string; name: string };
+type DestinationRef = { id: string; name: string; region?: string | null };
 
-const CURRENCIES = ["USD", "IDR", "EUR", "AUD", "GBP", "SGD"];
+type TabId = "general" | "content" | "pricing";
+
+const TABS: { id: TabId; label: string; hint: string }[] = [
+  { id: "general", label: "General", hint: "Titles, descriptions, destinations, categories & SEO" },
+  { id: "content", label: "Highlights & Itinerary", hint: "Highlights, inclusions, FAQ and day-by-day itinerary" },
+  { id: "pricing", label: "Pricing & Availability", hint: "Base price, pricing options, tiers & capacity" },
+];
 
 const emptyOption = (): TourOptionRow => ({
   name: "",
@@ -65,13 +94,23 @@ const emptyOption = (): TourOptionRow => ({
   priceChild: "",
   priceInfant: "",
   capacityOffset: "0",
+  agentNet: "",
   active: true,
+  tiers: [],
 });
+
+const emptyTier = (): TourTierRow => ({ label: "", minPax: "1", maxPax: "", price: "" });
 
 const lines = (value: string) =>
   value
     .split("\n")
     .map((l) => l.trim())
+    .filter(Boolean);
+
+const csv = (value: string) =>
+  value
+    .split(",")
+    .map((s) => s.trim())
     .filter(Boolean);
 
 function Section({
@@ -93,8 +132,8 @@ function Section({
 }
 
 /**
- * Create / edit form for a supplier tour.
- * Saves via /api/supplier/tours (POST) or /api/supplier/tours/[id] (PATCH).
+ * Create / edit form for a supplier tour, organised in three tabs:
+ * General · Highlights & Itinerary · Pricing & Availability.
  */
 export function SupplierTourForm({
   initial,
@@ -104,16 +143,19 @@ export function SupplierTourForm({
   tourId,
   status,
   adminNote,
+  preferredCurrency,
 }: {
   initial: TourFormValues;
   categories: Ref[];
-  destinations: Ref[];
+  destinations: DestinationRef[];
   mode: "create" | "edit";
   tourId?: string;
   status?: string;
   adminNote?: string | null;
+  preferredCurrency?: string;
 }) {
   const router = useRouter();
+  const [tab, setTab] = useState<TabId>("general");
   const [v, setV] = useState<TourFormValues>(initial);
   const [saving, setSaving] = useState<null | "draft" | "submit">(null);
   const [error, setError] = useState<string | null>(null);
@@ -134,9 +176,67 @@ export function SupplierTourForm({
       options: prev.options.map((o, i) => (i === index ? { ...o, ...patch } : o)),
     }));
 
-  const canResubmit = mode === "create" || !status || ["DRAFT", "CHANGES_REQUESTED", "REJECTED"].includes(status);
+  const setTier = (optIndex: number, tierIndex: number, patch: Partial<TourTierRow>) =>
+    setV((prev) => ({
+      ...prev,
+      options: prev.options.map((o, i) =>
+        i === optIndex
+          ? { ...o, tiers: o.tiers.map((t, ti) => (ti === tierIndex ? { ...t, ...patch } : t)) }
+          : o
+      ),
+    }));
+
+  const setItinerary = (index: number, patch: Partial<ItineraryRow>) =>
+    setV((prev) => ({
+      ...prev,
+      itinerary: prev.itinerary.map((row, i) => (i === index ? { ...row, ...patch } : row)),
+    }));
+
+  const setFaq = (index: number, patch: Partial<FaqRow>) =>
+    setV((prev) => ({ ...prev, faq: prev.faq.map((row, i) => (i === index ? { ...row, ...patch } : row)) }));
+
+  const toggleCategory = (id: string) =>
+    setV((prev) => ({
+      ...prev,
+      categoryLinks: prev.categoryLinks.includes(id)
+        ? prev.categoryLinks.filter((c) => c !== id)
+        : [...prev.categoryLinks, id],
+    }));
+
+  const pricePreview = useMemo(() => {
+    const cents = (s: string) => (s.trim() ? parseMoneyInput(s) : 0);
+    const base = cents(v.priceAdult);
+    const tierPrices = v.options.flatMap((o) => [
+      ...o.tiers.map((t) => cents(t.price)),
+      cents(o.priceAdult),
+    ]);
+    const positive = tierPrices.filter((p) => p > 0);
+    const effective = positive.length ? Math.min(...positive) : base;
+    return { base, effective, currency: v.currency };
+  }, [v.options, v.priceAdult, v.currency]);
+
+  const canResubmit =
+    mode === "create" || !status || ["DRAFT", "CHANGES_REQUESTED", "REJECTED"].includes(status);
+
+  function validate(): string | null {
+    if (!v.name.trim() || v.name.trim().length < 3) return "Please add a tour title (at least 3 characters).";
+    if (v.shortDescription.trim().length < 10)
+      return "Please add a short description of at least 10 characters.";
+    if (v.description.trim().length < 20)
+      return "Please add a full description of at least 20 characters.";
+    const min = Number(v.minParticipants) || 1;
+    const max = Number(v.maxParticipants) || 1;
+    if (max < min) return "Max pax must be at least the minimum.";
+    return null;
+  }
 
   async function save(submit: boolean) {
+    const problem = validate();
+    if (problem) {
+      setError(problem);
+      setSaved(null);
+      return;
+    }
     setSaving(submit ? "submit" : "draft");
     setError(null);
     setSaved(null);
@@ -144,11 +244,15 @@ export function SupplierTourForm({
       const payload = {
         name: v.name,
         slug: v.slug || undefined,
-        shortTitle: v.shortTitle || undefined,
-        subtitle: v.subtitle || undefined,
+        shortDescription: v.shortDescription,
         description: v.description,
-        categoryId: v.categoryId || undefined,
-        destinationId: v.destinationId || undefined,
+        seoTitle: v.seoTitle || undefined,
+        seoDescription: v.seoDescription || undefined,
+        seoKeywords: v.seoKeywords || undefined,
+        destinationLinks: v.destinationLinks
+          .filter((d) => d.id)
+          .map((d) => ({ id: d.id, regions: csv(d.regions) })),
+        categoryLinks: v.categoryLinks,
         location: v.location || undefined,
         meetingPoint: v.meetingPoint || undefined,
         pickupInfo: v.pickupInfo || undefined,
@@ -173,6 +277,10 @@ export function SupplierTourForm({
         exclusions: lines(v.exclusions),
         whatToBring: lines(v.whatToBring),
         importantInfo: v.importantInfo || undefined,
+        itinerary: v.itinerary
+          .filter((r) => r.title.trim())
+          .map((r) => ({ time: r.time || undefined, title: r.title, text: r.text || undefined })),
+        faq: v.faq.filter((r) => r.q.trim() && r.a.trim()).map((r) => ({ q: r.q, a: r.a })),
         options: v.options
           .filter((o) => o.name.trim())
           .map((o) => ({
@@ -184,7 +292,17 @@ export function SupplierTourForm({
             priceChildCents: o.priceChild ? parseMoneyInput(o.priceChild) : undefined,
             priceInfantCents: o.priceInfant ? parseMoneyInput(o.priceInfant) : undefined,
             capacityOffset: Number(o.capacityOffset) || 0,
+            agentNetBps: o.agentNet.trim() ? Math.round(Number(o.agentNet) * 100) : null,
             active: o.active,
+            tiers: o.tiers
+              .filter((t) => t.label.trim())
+              .map((t) => ({
+                id: t.id,
+                label: t.label,
+                minPax: Number(t.minPax) || 1,
+                maxPax: t.maxPax.trim() ? Number(t.maxPax) : null,
+                priceCents: parseMoneyInput(t.price),
+              })),
           })),
         media: v.mediaUrls.map((u) => u.trim()).filter(Boolean).map((url) => ({ url })),
         submit,
@@ -232,351 +350,729 @@ export function SupplierTourForm({
         </Alert>
       )}
 
-      <Section title="Basics" description="Name and describe your tour.">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Tour name" htmlFor="name" required className="sm:col-span-2">
-            <Input id="name" value={v.name} onChange={set("name")} required minLength={3} maxLength={160} />
-          </Field>
-          <Field label="Short title" htmlFor="shortTitle" hint="Optional shorter headline for cards.">
-            <Input id="shortTitle" value={v.shortTitle} onChange={set("shortTitle")} maxLength={160} />
-          </Field>
-          <Field label="URL slug" htmlFor="slug" hint="Leave empty to generate it from the name.">
-            <Input id="slug" value={v.slug} onChange={set("slug")} maxLength={80} placeholder="ubud-atv-adventure" />
-          </Field>
-          <Field label="Subtitle" htmlFor="subtitle" className="sm:col-span-2">
-            <Input id="subtitle" value={v.subtitle} onChange={set("subtitle")} maxLength={200} />
-          </Field>
-          <Field label="Category" htmlFor="categoryId">
-            <Select id="categoryId" value={v.categoryId} onChange={set("categoryId")}>
-              <option value="">— none —</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label="Destination" htmlFor="destinationId">
-            <Select id="destinationId" value={v.destinationId} onChange={set("destinationId")}>
-              <option value="">— none —</option>
-              {destinations.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field
-            label="Description"
-            htmlFor="description"
-            required
-            className="sm:col-span-2"
-            hint="At least 20 characters. Markdown formatting is supported."
-          >
-            <Textarea
-              id="description"
-              value={v.description}
-              onChange={set("description")}
-              className="min-h-40"
-              required
-              minLength={20}
-              maxLength={20000}
-            />
-          </Field>
-        </div>
-      </Section>
-
-      <Section title="Logistics" description="Where and how the tour runs.">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Location" htmlFor="location">
-            <Input id="location" value={v.location} onChange={set("location")} placeholder="Ubud, Bali" />
-          </Field>
-          <Field label="Duration (hours)" htmlFor="durationHours" required>
-            <Input
-              id="durationHours"
-              type="number"
-              step="0.5"
-              min="0.5"
-              max="240"
-              value={v.durationHours}
-              onChange={set("durationHours")}
-              required
-            />
-          </Field>
-          <Field label="Duration label" htmlFor="durationLabel" hint="e.g. “Half day (4 hours)”.">
-            <Input id="durationLabel" value={v.durationLabel} onChange={set("durationLabel")} maxLength={60} />
-          </Field>
-          <Field label="Tour type" htmlFor="tourType">
-            <Select id="tourType" value={v.tourType} onChange={set("tourType")}>
-              <option value="GROUP">Group tour</option>
-              <option value="PRIVATE">Private tour</option>
-            </Select>
-          </Field>
-          <Field label="Meeting point" htmlFor="meetingPoint">
-            <Input id="meetingPoint" value={v.meetingPoint} onChange={set("meetingPoint")} />
-          </Field>
-          <Field label="Difficulty" htmlFor="difficulty">
-            <Select id="difficulty" value={v.difficulty} onChange={set("difficulty")}>
-              <option value="EASY">Easy</option>
-              <option value="MODERATE">Moderate</option>
-              <option value="CHALLENGING">Challenging</option>
-            </Select>
-          </Field>
-          <Field label="Min participants" htmlFor="minParticipants">
-            <Input
-              id="minParticipants"
-              type="number"
-              min="1"
-              max="200"
-              value={v.minParticipants}
-              onChange={set("minParticipants")}
-            />
-          </Field>
-          <Field label="Max participants" htmlFor="maxParticipants">
-            <Input
-              id="maxParticipants"
-              type="number"
-              min="1"
-              max="500"
-              value={v.maxParticipants}
-              onChange={set("maxParticipants")}
-            />
-          </Field>
-          <Field label="Pickup details" htmlFor="pickupInfo" className="sm:col-span-2">
-            <Textarea id="pickupInfo" value={v.pickupInfo} onChange={set("pickupInfo")} className="min-h-20" />
-          </Field>
-          <div className="flex flex-wrap gap-4 sm:col-span-2">
-            <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-              <input type="checkbox" checked={v.instantConfirm} onChange={set("instantConfirm")} />
-              Instant confirmation
-            </label>
-            <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-              <input type="checkbox" checked={v.freeCancellation} onChange={set("freeCancellation")} />
-              Free cancellation
-            </label>
-            <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-              <input type="checkbox" checked={v.familyFriendly} onChange={set("familyFriendly")} />
-              Family friendly
-            </label>
-          </div>
-        </div>
-      </Section>
-
-      <Section title="Pricing" description="Base prices per person.">
-        <div className="grid gap-4 sm:grid-cols-4">
-          <Field label="Currency" htmlFor="currency">
-            <Select id="currency" value={v.currency} onChange={set("currency")}>
-              {CURRENCIES.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label={`Adult price (${currency})`} htmlFor="priceAdult" required>
-            <Input id="priceAdult" inputMode="decimal" value={v.priceAdult} onChange={set("priceAdult")} required />
-          </Field>
-          <Field label={`Child price (${currency})`} htmlFor="priceChild">
-            <Input id="priceChild" inputMode="decimal" value={v.priceChild} onChange={set("priceChild")} />
-          </Field>
-          <Field label={`Infant price (${currency})`} htmlFor="priceInfant">
-            <Input id="priceInfant" inputMode="decimal" value={v.priceInfant} onChange={set("priceInfant")} />
-          </Field>
-        </div>
-
-        <div className="mt-5 border-t border-slate-100 pt-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500">
-              Pricing options ({v.options.length})
-            </h3>
-            <Button
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex flex-wrap gap-1 border-b border-slate-100 p-2">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
               type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setV((p) => ({ ...p, options: [...p.options, emptyOption()] }))}
+              onClick={() => setTab(t.id)}
+              className={
+                "rounded-xl px-4 py-2 text-sm font-bold transition-colors " +
+                (tab === t.id ? "bg-brand-700 text-white" : "text-slate-600 hover:bg-slate-100")
+              }
             >
-              + Add option
-            </Button>
-          </div>
-          <p className="mt-1 text-xs text-slate-500">
-            Optional departures or ticket types (e.g. “Morning departure”). Prices fall back to the base prices above.
-          </p>
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <p className="px-4 py-2 text-xs text-slate-500">{TABS.find((t) => t.id === tab)?.hint}</p>
+      </div>
 
-          {v.options.length === 0 && (
-            <p className="mt-3 text-sm text-slate-400">No pricing options yet.</p>
-          )}
+      {/* ================= GENERAL ================= */}
+      {tab === "general" && (
+        <>
+          <Section title="Basics" description="Name and describe your tour.">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Title" htmlFor="name" required className="sm:col-span-2">
+                <Input id="name" value={v.name} onChange={set("name")} required minLength={3} maxLength={160} />
+              </Field>
+              <Field
+                label="Short description"
+                htmlFor="shortDescription"
+                required
+                className="sm:col-span-2"
+                hint="Shown on cards and used as the SEO description. Keep it under 300 characters."
+              >
+                <Textarea
+                  id="shortDescription"
+                  value={v.shortDescription}
+                  onChange={set("shortDescription")}
+                  className="min-h-20"
+                  maxLength={300}
+                />
+              </Field>
+              <Field label="URL slug" htmlFor="slug" hint="Leave empty to generate it from the title.">
+                <Input id="slug" value={v.slug} onChange={set("slug")} maxLength={80} placeholder="ubud-atv-adventure" />
+              </Field>
+              <div className="flex items-end">
+                <p className="text-xs text-slate-500">
+                  The slug is the last part of the public URL: <span className="font-mono">/trip/&lt;slug&gt;</span>
+                </p>
+              </div>
+              <Field
+                label="Full description"
+                htmlFor="description"
+                required
+                className="sm:col-span-2"
+                hint="At least 20 characters. Markdown formatting is supported."
+              >
+                <Textarea
+                  id="description"
+                  value={v.description}
+                  onChange={set("description")}
+                  className="min-h-40"
+                  maxLength={20000}
+                />
+              </Field>
+            </div>
+          </Section>
 
-          <div className="mt-3 space-y-4">
-            {v.options.map((o, i) => (
-              <div key={i} className="rounded-xl border border-slate-200 p-3 sm:p-4">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label="Option name" htmlFor={`opt-name-${i}`} required>
+          <Section
+            title="Destinations & categories"
+            description="Add several destinations for multi-day tours and list the regions covered inside each one."
+          >
+            <div className="space-y-3">
+              {v.destinationLinks.length === 0 && (
+                <p className="text-sm text-slate-400">No destinations added yet.</p>
+              )}
+              {v.destinationLinks.map((row, i) => (
+                <div key={i} className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
+                  <Field label={i === 0 ? "Destination" : `Destination ${i + 1}`} htmlFor={`dest-${i}`}>
+                    <Select
+                      id={`dest-${i}`}
+                      value={row.id}
+                      onChange={(e) =>
+                        setV((prev) => ({
+                          ...prev,
+                          destinationLinks: prev.destinationLinks.map((d, idx) =>
+                            idx === i ? { ...d, id: e.target.value } : d
+                          ),
+                        }))
+                      }
+                    >
+                      <option value="">— choose —</option>
+                      {destinations.map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.name}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                  <Field label="Regions" htmlFor={`regions-${i}`} hint="Comma separated, e.g. Ubud, Tegalalang">
                     <Input
-                      id={`opt-name-${i}`}
-                      value={o.name}
-                      onChange={(e) => setOption(i, { name: e.target.value })}
-                      placeholder="Morning departure"
+                      id={`regions-${i}`}
+                      value={row.regions}
+                      onChange={(e) =>
+                        setV((prev) => ({
+                          ...prev,
+                          destinationLinks: prev.destinationLinks.map((d, idx) =>
+                            idx === i ? { ...d, regions: e.target.value } : d
+                          ),
+                        }))
+                      }
+                      placeholder="Ubud, Tegalalang"
                     />
                   </Field>
-                  <Field label="Start time" htmlFor={`opt-time-${i}`}>
-                    <Input
-                      id={`opt-time-${i}`}
-                      value={o.startTime}
-                      onChange={(e) => setOption(i, { startTime: e.target.value })}
-                      placeholder="09:00"
-                    />
-                  </Field>
-                  <Field label={`Adult (${currency})`} htmlFor={`opt-adult-${i}`}>
-                    <Input
-                      id={`opt-adult-${i}`}
-                      inputMode="decimal"
-                      value={o.priceAdult}
-                      onChange={(e) => setOption(i, { priceAdult: e.target.value })}
-                    />
-                  </Field>
-                  <Field label={`Child (${currency})`} htmlFor={`opt-child-${i}`}>
-                    <Input
-                      id={`opt-child-${i}`}
-                      inputMode="decimal"
-                      value={o.priceChild}
-                      onChange={(e) => setOption(i, { priceChild: e.target.value })}
-                    />
-                  </Field>
-                  <Field label="Capacity offset" htmlFor={`opt-cap-${i}`} hint="Added to the default capacity (can be negative).">
-                    <Input
-                      id={`opt-cap-${i}`}
-                      type="number"
-                      value={o.capacityOffset}
-                      onChange={(e) => setOption(i, { capacityOffset: e.target.value })}
-                    />
-                  </Field>
-                  <div className="flex items-end gap-4">
-                    <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                      <input
-                        type="checkbox"
-                        checked={o.active}
-                        onChange={(e) => setOption(i, { active: e.target.checked })}
-                      />
-                      Active
-                    </label>
+                  <div className="flex items-end">
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
                       className="text-red-600"
                       onClick={() =>
-                        setV((p) => ({ ...p, options: p.options.filter((_, idx) => idx !== i) }))
+                        setV((prev) => ({
+                          ...prev,
+                          destinationLinks: prev.destinationLinks.filter((_, idx) => idx !== i),
+                        }))
                       }
                     >
                       Remove
                     </Button>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </Section>
-
-      <Section
-        title="Photos"
-        description="Paste public image URLs (the first one is the main photo)."
-      >
-        <div className="space-y-3">
-          {v.mediaUrls.map((url, i) => (
-            <div key={i} className="flex items-start gap-2">
-              <Input
-                value={url}
-                onChange={(e) =>
-                  setV((p) => ({
-                    ...p,
-                    mediaUrls: p.mediaUrls.map((u, idx) => (idx === i ? e.target.value : u)),
-                  }))
-                }
-                placeholder="/media/tours/my-photo.webp or https://…"
-              />
+              ))}
               <Button
                 type="button"
-                variant="ghost"
+                variant="outline"
                 size="sm"
-                className="text-red-600"
                 onClick={() =>
-                  setV((p) => ({ ...p, mediaUrls: p.mediaUrls.filter((_, idx) => idx !== i) }))
+                  setV((prev) => ({
+                    ...prev,
+                    destinationLinks: [...prev.destinationLinks, { id: "", regions: "" }],
+                  }))
                 }
               >
-                Remove
+                + Add destination
               </Button>
             </div>
-          ))}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setV((p) => ({ ...p, mediaUrls: [...p.mediaUrls, ""] }))}
+
+            <div className="mt-5 border-t border-slate-100 pt-4">
+              <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500">Categories</h3>
+              <p className="mt-1 text-xs text-slate-500">Select every category this tour belongs to.</p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                {categories.map((c) => (
+                  <label key={c.id} className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={v.categoryLinks.includes(c.id)}
+                      onChange={() => toggleCategory(c.id)}
+                    />
+                    {c.name}
+                  </label>
+                ))}
+                {categories.length === 0 && <p className="text-sm text-slate-400">No categories available.</p>}
+              </div>
+            </div>
+          </Section>
+
+          <Section title="Details" description="Duration, group size and difficulty.">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Duration (hours)" htmlFor="durationHours" required>
+                <Input
+                  id="durationHours"
+                  type="number"
+                  step="0.5"
+                  min="0.5"
+                  max="240"
+                  value={v.durationHours}
+                  onChange={set("durationHours")}
+                />
+              </Field>
+              <Field
+                label="Duration text"
+                htmlFor="durationLabel"
+                hint="Human wording shown on cards, e.g. “3 days / 2 nights”."
+              >
+                <Input id="durationLabel" value={v.durationLabel} onChange={set("durationLabel")} maxLength={60} />
+              </Field>
+              <Field label="Difficulty" htmlFor="difficulty">
+                <Select id="difficulty" value={v.difficulty} onChange={set("difficulty")}>
+                  <option value="EASY">Easy</option>
+                  <option value="MODERATE">Moderate</option>
+                  <option value="CHALLENGING">Challenging</option>
+                </Select>
+              </Field>
+              <Field label="Tour type" htmlFor="tourType">
+                <Select id="tourType" value={v.tourType} onChange={set("tourType")}>
+                  <option value="GROUP">Group tour</option>
+                  <option value="PRIVATE">Private tour</option>
+                </Select>
+              </Field>
+              <Field label="Min pax" htmlFor="minParticipants" required>
+                <Input
+                  id="minParticipants"
+                  type="number"
+                  min="1"
+                  max="200"
+                  value={v.minParticipants}
+                  onChange={set("minParticipants")}
+                />
+              </Field>
+              <Field label="Max pax" htmlFor="maxParticipants" required>
+                <Input
+                  id="maxParticipants"
+                  type="number"
+                  min="1"
+                  max="500"
+                  value={v.maxParticipants}
+                  onChange={set("maxParticipants")}
+                />
+              </Field>
+              <Field label="Location" htmlFor="location">
+                <Input id="location" value={v.location} onChange={set("location")} placeholder="Ubud, Bali" />
+              </Field>
+              <Field label="Meeting point" htmlFor="meetingPoint">
+                <Input id="meetingPoint" value={v.meetingPoint} onChange={set("meetingPoint")} />
+              </Field>
+              <Field label="Pickup details" htmlFor="pickupInfo" className="sm:col-span-2">
+                <Textarea id="pickupInfo" value={v.pickupInfo} onChange={set("pickupInfo")} className="min-h-20" />
+              </Field>
+              <div className="flex flex-wrap gap-4 sm:col-span-2">
+                <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                  <input type="checkbox" checked={v.instantConfirm} onChange={set("instantConfirm")} />
+                  Instant confirmation
+                </label>
+                <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                  <input type="checkbox" checked={v.freeCancellation} onChange={set("freeCancellation")} />
+                  Free cancellation
+                </label>
+                <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                  <input type="checkbox" checked={v.familyFriendly} onChange={set("familyFriendly")} />
+                  Family friendly
+                </label>
+              </div>
+            </div>
+          </Section>
+
+          <Section title="Important note" description="Anything guests must know before they book.">
+            <Field label="Important note" htmlFor="importantInfo">
+              <Textarea id="importantInfo" value={v.importantInfo} onChange={set("importantInfo")} className="min-h-24" />
+            </Field>
+          </Section>
+
+          <Section
+            title="SEO"
+            description="Overrides for search engines. Leave empty to reuse the title & short description."
           >
-            + Add photo
-          </Button>
-          <p className="text-xs text-slate-500">
-            File uploads are not stored on the serverless deployment yet, so use an
-            already-hosted image URL (for example one from the media library or your CDN).
-          </p>
-        </div>
-      </Section>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="SEO title" htmlFor="seoTitle" className="sm:col-span-2">
+                <Input id="seoTitle" value={v.seoTitle} onChange={set("seoTitle")} maxLength={160} />
+              </Field>
+              <Field label="SEO description" htmlFor="seoDescription" className="sm:col-span-2">
+                <Textarea
+                  id="seoDescription"
+                  value={v.seoDescription}
+                  onChange={set("seoDescription")}
+                  className="min-h-20"
+                  maxLength={300}
+                />
+              </Field>
+              <Field label="SEO keywords" htmlFor="seoKeywords" className="sm:col-span-2">
+                <Input id="seoKeywords" value={v.seoKeywords} onChange={set("seoKeywords")} maxLength={300} />
+              </Field>
+            </div>
+          </Section>
 
-      <Section title="Capacity & booking window">
-        <div className="grid gap-4 sm:grid-cols-3">
-          <Field label="Default capacity" htmlFor="defaultCapacity">
-            <Input
-              id="defaultCapacity"
-              type="number"
-              min="1"
-              max="1000"
-              value={v.defaultCapacity}
-              onChange={set("defaultCapacity")}
-            />
-          </Field>
-          <Field label="Booking cutoff (hours)" htmlFor="bookingCutoffHours">
-            <Input
-              id="bookingCutoffHours"
-              type="number"
-              min="0"
-              max="720"
-              value={v.bookingCutoffHours}
-              onChange={set("bookingCutoffHours")}
-            />
-          </Field>
-          <Field label="Bookable up to (days ahead)" htmlFor="maxAdvanceDays">
-            <Input
-              id="maxAdvanceDays"
-              type="number"
-              min="1"
-              max="1095"
-              value={v.maxAdvanceDays}
-              onChange={set("maxAdvanceDays")}
-            />
-          </Field>
-        </div>
-      </Section>
+          <Section title="Photos" description="Paste public image URLs (the first one is the main photo).">
+            <div className="space-y-3">
+              {v.mediaUrls.map((url, i) => (
+                <div key={i} className="flex items-start gap-2">
+                  <Input
+                    value={url}
+                    onChange={(e) =>
+                      setV((p) => ({
+                        ...p,
+                        mediaUrls: p.mediaUrls.map((u, idx) => (idx === i ? e.target.value : u)),
+                      }))
+                    }
+                    placeholder="/media/tours/my-photo.webp or https://…"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-red-600"
+                    onClick={() => setV((p) => ({ ...p, mediaUrls: p.mediaUrls.filter((_, idx) => idx !== i) }))}
+                  >
+                    Remove
+                  </Button>
+                </div>
+              ))}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setV((p) => ({ ...p, mediaUrls: [...p.mediaUrls, ""] }))}
+              >
+                + Add photo
+              </Button>
+              <p className="text-xs text-slate-500">
+                File uploads are not stored on the serverless deployment yet, so use an already-hosted image URL.
+              </p>
+            </div>
+          </Section>
+        </>
+      )}
 
-      <Section title="Content" description="One item per line — shown on the public tour page.">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Highlights" htmlFor="highlights">
-            <Textarea id="highlights" value={v.highlights} onChange={set("highlights")} className="min-h-28" />
-          </Field>
-          <Field label="What's included" htmlFor="inclusions">
-            <Textarea id="inclusions" value={v.inclusions} onChange={set("inclusions")} className="min-h-28" />
-          </Field>
-          <Field label="Not included" htmlFor="exclusions">
-            <Textarea id="exclusions" value={v.exclusions} onChange={set("exclusions")} className="min-h-28" />
-          </Field>
-          <Field label="What to bring" htmlFor="whatToBring">
-            <Textarea id="whatToBring" value={v.whatToBring} onChange={set("whatToBring")} className="min-h-28" />
-          </Field>
-          <Field label="Important information" htmlFor="importantInfo" className="sm:col-span-2">
-            <Textarea id="importantInfo" value={v.importantInfo} onChange={set("importantInfo")} className="min-h-24" />
-          </Field>
-        </div>
-      </Section>
+      {/* ============ HIGHLIGHTS & ITINERARY ============ */}
+      {tab === "content" && (
+        <>
+          <Section title="Highlights" description="One highlight per line — shown as a bullet list.">
+            <Textarea id="highlights" value={v.highlights} onChange={set("highlights")} className="min-h-32" />
+          </Section>
+
+          <Section title="Include & Exclude" description="One item per line.">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="What's included" htmlFor="inclusions">
+                <Textarea id="inclusions" value={v.inclusions} onChange={set("inclusions")} className="min-h-32" />
+              </Field>
+              <Field label="Not included" htmlFor="exclusions">
+                <Textarea id="exclusions" value={v.exclusions} onChange={set("exclusions")} className="min-h-32" />
+              </Field>
+              <Field label="What to bring" htmlFor="whatToBring" className="sm:col-span-2">
+                <Textarea id="whatToBring" value={v.whatToBring} onChange={set("whatToBring")} className="min-h-24" />
+              </Field>
+            </div>
+          </Section>
+
+          <Section title="Itinerary" description="Add each stop with an optional time.">
+            <div className="space-y-3">
+              {v.itinerary.length === 0 && <p className="text-sm text-slate-400">No itinerary stops yet.</p>}
+              {v.itinerary.map((row, i) => (
+                <div key={i} className="rounded-xl border border-slate-200 p-3 sm:p-4">
+                  <div className="grid gap-3 sm:grid-cols-[120px_1fr_auto]">
+                    <Field label="Time" htmlFor={`it-time-${i}`}>
+                      <Input
+                        id={`it-time-${i}`}
+                        value={row.time}
+                        onChange={(e) => setItinerary(i, { time: e.target.value })}
+                        placeholder="09:00"
+                      />
+                    </Field>
+                    <Field label="Title" htmlFor={`it-title-${i}`}>
+                      <Input
+                        id={`it-title-${i}`}
+                        value={row.title}
+                        onChange={(e) => setItinerary(i, { title: e.target.value })}
+                        placeholder="Arrive at the trailhead"
+                      />
+                    </Field>
+                    <div className="flex items-end">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-red-600"
+                        onClick={() =>
+                          setV((p) => ({ ...p, itinerary: p.itinerary.filter((_, idx) => idx !== i) }))
+                        }
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  </div>
+                  <Field label="Details" htmlFor={`it-text-${i}`} className="mt-3">
+                    <Textarea
+                      id={`it-text-${i}`}
+                      value={row.text}
+                      onChange={(e) => setItinerary(i, { text: e.target.value })}
+                      className="min-h-20"
+                    />
+                  </Field>
+                </div>
+              ))}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  setV((p) => ({ ...p, itinerary: [...p.itinerary, { time: "", title: "", text: "" }] }))
+                }
+              >
+                + Add itinerary stop
+              </Button>
+            </div>
+          </Section>
+
+          <Section title="FAQ" description="Questions guests often ask about this tour.">
+            <div className="space-y-3">
+              {v.faq.length === 0 && <p className="text-sm text-slate-400">No FAQ entries yet.</p>}
+              {v.faq.map((row, i) => (
+                <div key={i} className="rounded-xl border border-slate-200 p-3 sm:p-4">
+                  <div className="flex items-start gap-2">
+                    <Field label="Question" htmlFor={`faq-q-${i}`} className="flex-1">
+                      <Input id={`faq-q-${i}`} value={row.q} onChange={(e) => setFaq(i, { q: e.target.value })} />
+                    </Field>
+                    <div className="flex items-end pt-6">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-red-600"
+                        onClick={() => setV((p) => ({ ...p, faq: p.faq.filter((_, idx) => idx !== i) }))}
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  </div>
+                  <Field label="Answer" htmlFor={`faq-a-${i}`} className="mt-3">
+                    <Textarea
+                      id={`faq-a-${i}`}
+                      value={row.a}
+                      onChange={(e) => setFaq(i, { a: e.target.value })}
+                      className="min-h-20"
+                    />
+                  </Field>
+                </div>
+              ))}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setV((p) => ({ ...p, faq: [...p.faq, { q: "", a: "" }] }))}
+              >
+                + Add FAQ
+              </Button>
+            </div>
+          </Section>
+        </>
+      )}
+
+      {/* ============ PRICING & AVAILABILITY ============ */}
+      {tab === "pricing" && (
+        <>
+          <Section
+            title="Base price"
+            description="The default price per person. Cards show it struck through when a pricing tier goes lower."
+          >
+            <div className="grid gap-4 sm:grid-cols-4">
+              <Field
+                label="Currency"
+                htmlFor="currency"
+                hint={preferredCurrency ? `Preferred: ${preferredCurrency}` : undefined}
+              >
+                <Select id="currency" value={v.currency} onChange={set("currency")}>
+                  {CURRENCIES.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label={`Base adult (${currency})`} htmlFor="priceAdult" required>
+                <Input id="priceAdult" inputMode="decimal" value={v.priceAdult} onChange={set("priceAdult")} />
+              </Field>
+              <Field label={`Child (${currency})`} htmlFor="priceChild">
+                <Input id="priceChild" inputMode="decimal" value={v.priceChild} onChange={set("priceChild")} />
+              </Field>
+              <Field label={`Infant (${currency})`} htmlFor="priceInfant">
+                <Input id="priceInfant" inputMode="decimal" value={v.priceInfant} onChange={set("priceInfant")} />
+              </Field>
+            </div>
+
+            <div className="mt-4 rounded-xl bg-brand-50 px-4 py-3 text-sm">
+              <p className="font-semibold text-brand-900">Card price preview</p>
+              <p className="mt-1 text-brand-800">
+                {pricePreview.effective < pricePreview.base && pricePreview.base > 0 ? (
+                  <>
+                    <span className="mr-2 text-slate-400 line-through">
+                      {formatMoney(pricePreview.base, pricePreview.currency)}
+                    </span>
+                    <span className="text-lg font-extrabold text-brand-800">
+                      {formatMoney(pricePreview.effective, pricePreview.currency)}
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-lg font-extrabold text-brand-800">
+                    {formatMoney(pricePreview.effective, pricePreview.currency)}
+                  </span>
+                )}
+                <span className="text-xs font-medium text-slate-500"> / adult · from lowest tier</span>
+              </p>
+            </div>
+          </Section>
+
+          <Section
+            title="Pricing options"
+            description="Optional departures or ticket types. Each option can hold a description, an agent/member discount and price tiers."
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500">
+                Options ({v.options.length})
+              </h3>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setV((p) => ({ ...p, options: [...p.options, emptyOption()] }))}
+              >
+                + Add option
+              </Button>
+            </div>
+
+            {v.options.length === 0 && <p className="mt-3 text-sm text-slate-400">No pricing options yet.</p>}
+
+            <div className="mt-3 space-y-5">
+              {v.options.map((o, i) => (
+                <div key={i} className="rounded-xl border border-slate-200 p-3 sm:p-4">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Field label="Option name" htmlFor={`opt-name-${i}`} required>
+                      <Input
+                        id={`opt-name-${i}`}
+                        value={o.name}
+                        onChange={(e) => setOption(i, { name: e.target.value })}
+                        placeholder="Morning departure"
+                      />
+                    </Field>
+                    <Field label="Start time" htmlFor={`opt-time-${i}`}>
+                      <Input
+                        id={`opt-time-${i}`}
+                        value={o.startTime}
+                        onChange={(e) => setOption(i, { startTime: e.target.value })}
+                        placeholder="09:00"
+                      />
+                    </Field>
+                    <Field label="Description" htmlFor={`opt-desc-${i}`} className="sm:col-span-2">
+                      <Textarea
+                        id={`opt-desc-${i}`}
+                        value={o.description}
+                        onChange={(e) => setOption(i, { description: e.target.value })}
+                        className="min-h-16"
+                      />
+                    </Field>
+                    <Field label={`Adult (${currency})`} htmlFor={`opt-adult-${i}`}>
+                      <Input
+                        id={`opt-adult-${i}`}
+                        inputMode="decimal"
+                        value={o.priceAdult}
+                        onChange={(e) => setOption(i, { priceAdult: e.target.value })}
+                      />
+                    </Field>
+                    <Field label={`Child (${currency})`} htmlFor={`opt-child-${i}`}>
+                      <Input
+                        id={`opt-child-${i}`}
+                        inputMode="decimal"
+                        value={o.priceChild}
+                        onChange={(e) => setOption(i, { priceChild: e.target.value })}
+                      />
+                    </Field>
+                    <Field label={`Infant (${currency})`} htmlFor={`opt-infant-${i}`}>
+                      <Input
+                        id={`opt-infant-${i}`}
+                        inputMode="decimal"
+                        value={o.priceInfant}
+                        onChange={(e) => setOption(i, { priceInfant: e.target.value })}
+                      />
+                    </Field>
+                    <Field
+                      label="Capacity offset"
+                      htmlFor={`opt-cap-${i}`}
+                      hint="Added to the default capacity (can be negative)."
+                    >
+                      <Input
+                        id={`opt-cap-${i}`}
+                        type="number"
+                        value={o.capacityOffset}
+                        onChange={(e) => setOption(i, { capacityOffset: e.target.value })}
+                      />
+                    </Field>
+                    <Field
+                      label="Agent / member net price"
+                      htmlFor={`opt-net-${i}`}
+                      hint="Discount % off for agents/members. Leave empty if you don't offer one."
+                    >
+                      <Input
+                        id={`opt-net-${i}`}
+                        inputMode="decimal"
+                        value={o.agentNet}
+                        onChange={(e) => setOption(i, { agentNet: e.target.value })}
+                        placeholder="e.g. 10"
+                      />
+                    </Field>
+                    <div className="flex items-end gap-4">
+                      <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={o.active}
+                          onChange={(e) => setOption(i, { active: e.target.checked })}
+                        />
+                        Active
+                      </label>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-red-600"
+                        onClick={() => setV((p) => ({ ...p, options: p.options.filter((_, idx) => idx !== i) }))}
+                      >
+                        Remove option
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 border-t border-slate-100 pt-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                        Pricing tiers ({o.tiers.length})
+                      </h4>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setOption(i, { tiers: [...o.tiers, emptyTier()] })}
+                      >
+                        + Add tier
+                      </Button>
+                    </div>
+                    {o.tiers.length === 0 && (
+                      <p className="mt-2 text-xs text-slate-400">
+                        No tiers — this option uses the prices above.
+                      </p>
+                    )}
+                    <div className="mt-2 space-y-2">
+                      {o.tiers.map((t, ti) => (
+                        <div key={ti} className="grid gap-2 sm:grid-cols-[1fr_80px_80px_120px_auto]">
+                          <Field label="Label" htmlFor={`tier-label-${i}-${ti}`}>
+                            <Input
+                              id={`tier-label-${i}-${ti}`}
+                              value={t.label}
+                              onChange={(e) => setTier(i, ti, { label: e.target.value })}
+                              placeholder="2 travellers"
+                            />
+                          </Field>
+                          <Field label="Min pax" htmlFor={`tier-min-${i}-${ti}`}>
+                            <Input
+                              id={`tier-min-${i}-${ti}`}
+                              type="number"
+                              min="1"
+                              value={t.minPax}
+                              onChange={(e) => setTier(i, ti, { minPax: e.target.value })}
+                            />
+                          </Field>
+                          <Field label="Max pax" htmlFor={`tier-max-${i}-${ti}`}>
+                            <Input
+                              id={`tier-max-${i}-${ti}`}
+                              type="number"
+                              min="1"
+                              value={t.maxPax}
+                              onChange={(e) => setTier(i, ti, { maxPax: e.target.value })}
+                            />
+                          </Field>
+                          <Field label={`Price (${currency})`} htmlFor={`tier-price-${i}-${ti}`}>
+                            <Input
+                              id={`tier-price-${i}-${ti}`}
+                              inputMode="decimal"
+                              value={t.price}
+                              onChange={(e) => setTier(i, ti, { price: e.target.value })}
+                            />
+                          </Field>
+                          <div className="flex items-end">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="text-red-600"
+                              onClick={() => setOption(i, { tiers: o.tiers.filter((_, idx) => idx !== ti) })}
+                            >
+                              ✕
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Section>
+
+          <Section title="Capacity & booking window">
+            <div className="grid gap-4 sm:grid-cols-3">
+              <Field label="Default capacity" htmlFor="defaultCapacity">
+                <Input
+                  id="defaultCapacity"
+                  type="number"
+                  min="1"
+                  max="1000"
+                  value={v.defaultCapacity}
+                  onChange={set("defaultCapacity")}
+                />
+              </Field>
+              <Field label="Booking cutoff (hours)" htmlFor="bookingCutoffHours">
+                <Input
+                  id="bookingCutoffHours"
+                  type="number"
+                  min="0"
+                  max="720"
+                  value={v.bookingCutoffHours}
+                  onChange={set("bookingCutoffHours")}
+                />
+              </Field>
+              <Field label="Bookable up to (days ahead)" htmlFor="maxAdvanceDays">
+                <Input
+                  id="maxAdvanceDays"
+                  type="number"
+                  min="1"
+                  max="1095"
+                  value={v.maxAdvanceDays}
+                  onChange={set("maxAdvanceDays")}
+                />
+              </Field>
+            </div>
+          </Section>
+        </>
+      )}
 
       <div className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-3 px-4 py-3">

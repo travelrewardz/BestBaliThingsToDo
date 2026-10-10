@@ -32,6 +32,7 @@ export default async function SupplierProfilePage() {
               address: supplier.address ?? "",
               city: supplier.city ?? "",
               description: supplier.description ?? "",
+              currency: supplier.currency ?? "USD",
             }}
           />
         </section>

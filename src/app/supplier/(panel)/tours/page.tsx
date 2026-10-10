@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { Badge, ButtonLink, EmptyState, SmartImage } from "@/components/ui";
 import { formatMoney } from "@/lib/money";
 import { requireSupplierPanel, productStatusTone, statusLabel } from "@/lib/supplier";
+import { effectiveFromPriceCents } from "@/lib/tours";
 import { SupplierTourActions } from "@/components/SupplierTourActions";
 
 export const metadata: Metadata = { title: "Tours" };
@@ -31,6 +32,7 @@ export default async function SupplierToursPage() {
         take: 1,
         select: { url: true },
       },
+      options: { select: { priceAdultCents: true, tiers: { select: { priceCents: true } } } },
       _count: { select: { options: true, items: true } },
     },
   });
@@ -66,6 +68,8 @@ export default async function SupplierToursPage() {
       ) : (
         <ul className="mt-6 divide-y divide-slate-200 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           {products.map((tour) => {
+            const effective = effectiveFromPriceCents(tour.priceAdultCents, tour.options);
+            const hasStrike = effective > 0 && effective < tour.priceAdultCents;
             const meta = [
               tour.durationLabel ?? `${tour.durationHours} h`,
               tour.category?.name,
@@ -106,9 +110,21 @@ export default async function SupplierToursPage() {
                     {" · "}
                     {tour._count.items} booking{tour._count.items === 1 ? "" : "s"}
                     {" · "}
-                    {tour.priceAdultCents > 0
-                      ? `from ${formatMoney(tour.priceAdultCents, tour.currency)}`
-                      : "no base price"}
+                    {effective > 0 ? (
+                      <>
+                        {"from "}
+                        <span className="font-semibold text-slate-700">
+                          {formatMoney(effective, tour.currency)}
+                        </span>
+                        {hasStrike && (
+                          <span className="ml-1 text-slate-400 line-through">
+                            {formatMoney(tour.priceAdultCents, tour.currency)}
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      "no base price"
+                    )}
                   </p>
                 </div>
 
