@@ -142,6 +142,7 @@ export default async function AdminCmsPage() {
         subtitle="Pages, guides, FAQs, menus and landing pages."
         actions={
           <>
+            <ButtonLink href="/admin/cms/media" variant="outline">🖼 Media</ButtonLink>
             <ButtonLink href="/admin/cms/pages/new" variant="outline">+ New page</ButtonLink>
             <ButtonLink href="/admin/cms/faqs/new" variant="dark">+ New FAQ</ButtonLink>
           </>

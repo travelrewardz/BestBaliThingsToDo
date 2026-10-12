@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Alert, Button, Field, Input, Textarea } from "@/components/ui";
+import { ImageUrlField } from "@/components/admin/ImageUrlField";
 
 export type DestinationValues = {
   name: string;
@@ -93,12 +94,28 @@ export function DestinationForm({
         <Field label="Sort order" htmlFor="sortOrder">
           <Input id="sortOrder" type="number" min="0" value={v.sortOrder} onChange={set("sortOrder")} />
         </Field>
-        <Field label="Hero image URL" htmlFor="heroImage">
-          <Input id="heroImage" value={v.heroImage} onChange={set("heroImage")} maxLength={500} />
-        </Field>
-        <Field label="Card image URL" htmlFor="image">
-          <Input id="image" value={v.image} onChange={set("image")} maxLength={500} />
-        </Field>
+        <ImageUrlField
+          label="Hero image"
+          htmlFor="heroImage"
+          subdir="destinations"
+          hint="Paste a URL or upload from your device."
+          value={v.heroImage}
+          onChange={(value) => {
+            setV((prev) => ({ ...prev, heroImage: value }));
+            setSaved(false);
+          }}
+        />
+        <ImageUrlField
+          label="Card image"
+          htmlFor="image"
+          subdir="destinations"
+          hint="Paste a URL or upload from your device."
+          value={v.image}
+          onChange={(value) => {
+            setV((prev) => ({ ...prev, image: value }));
+            setSaved(false);
+          }}
+        />
         <Field label="Description" htmlFor="description" className="sm:col-span-2">
           <Textarea id="description" value={v.description} onChange={set("description")} maxLength={2000} />
         </Field>
