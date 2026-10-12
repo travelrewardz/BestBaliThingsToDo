@@ -952,6 +952,8 @@ model Media {
   id           String   @id @default(cuid())
   fileName     String
   url          String
+  /// Raw file bytes when no object storage is configured (served by /api/media/[id]).
+  data         Bytes?
   alt          String   @default("")
   title        String?
   caption      String?

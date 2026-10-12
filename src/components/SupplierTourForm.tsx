@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Alert, Badge, Button, Field, Input, Select, Textarea } from "@/components/ui";
 import { formatMoney, parseMoneyInput } from "@/lib/money";
@@ -160,6 +160,9 @@ export function SupplierTourForm({
   const [saving, setSaving] = useState<null | "draft" | "submit">(null);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(0);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const set = <K extends keyof TourFormValues>(key: K) => (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
@@ -169,6 +172,34 @@ export function SupplierTourForm({
     setV((prev) => ({ ...prev, [key]: value }));
     setSaved(null);
   };
+
+  async function onPickFiles(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    const queue = Array.from(files);
+    setUploadError(null);
+    setUploading(queue.length);
+    try {
+      const uploaded: string[] = [];
+      for (const file of queue) {
+        const fd = new FormData();
+        fd.append("file", file);
+        fd.append("subdir", "tours");
+        const res = await fetch("/api/supplier/uploads", { method: "POST", body: fd });
+        const data = await res.json().catch(() => ({} as { error?: { message?: string }; url?: string }));
+        if (!res.ok || !data.url) {
+          throw new Error(data?.error?.message ?? `Could not upload ${file.name}.`);
+        }
+        uploaded.push(data.url);
+        setUploading(queue.length - uploaded.length);
+      }
+      setV((p) => ({ ...p, mediaUrls: [...p.mediaUrls.filter(Boolean), ...uploaded] }));
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Upload failed — please retry.");
+    } finally {
+      setUploading(0);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
 
   const setOption = (index: number, patch: Partial<TourOptionRow>) =>
     setV((prev) => ({
@@ -624,10 +655,23 @@ export function SupplierTourForm({
             </div>
           </Section>
 
-          <Section title="Photos" description="Paste public image URLs (the first one is the main photo).">
+          <Section title="Photos" description="Upload from your device or paste a hosted URL. The first photo is the main card image.">
             <div className="space-y-3">
               {v.mediaUrls.map((url, i) => (
                 <div key={i} className="flex items-start gap-2">
+                  <span className="mt-1 hidden h-10 w-14 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-100 sm:block">
+                    {url.trim() && (
+                      // eslint-disable-next-line @next/next/no-img-element -- uploaded URLs may be cross-origin
+                      <img
+                        src={url}
+                        alt=""
+                        className="h-full w-full object-cover"
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).style.display = "none";
+                        }}
+                      />
+                    )}
+                  </span>
                   <Input
                     value={url}
                     onChange={(e) =>
@@ -649,17 +693,29 @@ export function SupplierTourForm({
                   </Button>
                 </div>
               ))}
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setV((p) => ({ ...p, mediaUrls: [...p.mediaUrls, ""] }))}
-              >
-                + Add photo
-              </Button>
-              <p className="text-xs text-slate-500">
-                File uploads are not stored on the serverless deployment yet, so use an already-hosted image URL.
-              </p>
+              {uploadError && <Alert tone="error">{uploadError}</Alert>}
+              <div className="flex flex-wrap items-center gap-2">
+                <Button type="button" variant="dark" size="sm" disabled={uploading > 0} onClick={() => fileRef.current?.click()}>
+                  {uploading > 0 ? `Uploading ${uploading}…` : "⬆ Upload from device"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setV((p) => ({ ...p, mediaUrls: [...p.mediaUrls, ""] }))}
+                >
+                  + Add URL
+                </Button>
+                <span className="text-xs text-slate-500">JPG, PNG, WebP, AVIF or GIF · up to 4MB each.</span>
+              </div>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/avif,image/gif,image/svg+xml"
+                multiple
+                className="hidden"
+                onChange={(e) => void onPickFiles(e.target.files)}
+              />
             </div>
           </Section>
         </>

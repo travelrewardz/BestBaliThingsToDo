@@ -36,10 +36,22 @@ export function slugifyFileName(name: string): string {
  * Returns the public URL. Rejects oversized files, disallowed MIME types
  * and path tricks.
  */
-export async function saveUpload(
+export type ValidatedUpload = {
+  buf: Buffer;
+  fileName: string;
+  dirRel: string;
+  mimeType: string;
+  sizeBytes: number;
+};
+
+/**
+ * Validates an uploaded file (size, MIME type, extension, content sniffing)
+ * and returns the bytes plus a safe, unique storage path. Throws UploadError.
+ */
+export async function validateUpload(
   file: File,
   opts: { kind?: "image" | "document"; subdir?: string } = {}
-): Promise<{ url: string; fileName: string; sizeBytes: number; mimeType: string }> {
+): Promise<ValidatedUpload> {
   if (!file || typeof file === "string") throw new UploadError("No file provided");
   const maxSize = opts.kind === "document" ? 5 * 1024 * 1024 : 4 * 1024 * 1024;
   if (file.size > maxSize) {
@@ -63,8 +75,6 @@ export async function saveUpload(
   const dirRel = opts.subdir
     ? `${opts.subdir}/${yyyy}/${mm}`
     : `${yyyy}/${mm}`;
-  const dirAbs = path.join(process.cwd(), "public", "uploads", dirRel);
-  await fs.mkdir(dirAbs, { recursive: true });
 
   const base = slugifyFileName(original);
   const unique = crypto.randomBytes(4).toString("hex");
@@ -76,12 +86,47 @@ export async function saveUpload(
     throw new UploadError("File content does not match its type");
   }
 
-  await fs.writeFile(path.join(dirAbs, fileName), buf);
+  return { buf, fileName, dirRel, mimeType: type, sizeBytes: file.size };
+}
+
+/**
+ * Stores an upload on Vercel Blob (when BLOB_READ_WRITE_TOKEN is set) or on
+ * local disk (development). Returns the public URL.
+ */
+export async function saveUpload(
+  file: File,
+  opts: { kind?: "image" | "document"; subdir?: string } = {}
+): Promise<{ url: string; fileName: string; sizeBytes: number; mimeType: string }> {
+  const v = await validateUpload(file, opts);
+
+  // Production (Vercel serverless): write to Vercel Blob so the file survives
+  // deploys. Local development falls back to public/uploads on disk.
+  const blobToken = process.env.BLOB_READ_WRITE_TOKEN;
+  if (blobToken) {
+    const { put } = await import("@vercel/blob");
+    const blob = await put(`uploads/${v.dirRel}/${v.fileName}`, v.buf, {
+      access: "public",
+      token: blobToken,
+      allowOverwrite: true,
+      contentType: v.mimeType,
+      cacheControlMaxAge: 31536000,
+    });
+    return {
+      url: blob.url,
+      fileName: v.fileName,
+      sizeBytes: v.sizeBytes,
+      mimeType: v.mimeType,
+    };
+  }
+
+  const dirAbs = path.join(process.cwd(), "public", "uploads", v.dirRel);
+  await fs.mkdir(dirAbs, { recursive: true });
+  await fs.writeFile(path.join(dirAbs, v.fileName), v.buf);
   return {
-    url: `/uploads/${dirRel}/${fileName}`,
-    fileName,
-    sizeBytes: file.size,
-    mimeType: type,
+    url: `/uploads/${v.dirRel}/${v.fileName}`,
+    fileName: v.fileName,
+    sizeBytes: v.sizeBytes,
+    mimeType: v.mimeType,
   };
 }
 
