@@ -212,7 +212,10 @@ export async function nextReference(
 ): Promise<string> {
   const year = now.getUTCFullYear();
   const key = `seq_booking_${year}`;
-  await tx.setting
+  // Ensure the counter row exists — but NEVER on the caller's transaction:
+  // a unique-violation there aborts the whole Postgres transaction, and the
+  // booking insert would then fail with "current transaction is aborted".
+  await prisma.setting
     .create({
       data: { key, value: "0", group: "system", label: "Booking sequence", type: "number" },
     })
@@ -227,6 +230,8 @@ export async function nextReference(
     }
   } catch (err) {
     logError(err, { where: "nextReference" });
+    // the failed statement may have aborted a caller transaction — let it surface
+    if (tx !== prisma) throw err;
   }
   // Fallback: derive from count (unique index still protects against collisions).
   const start = new Date(Date.UTC(year, 0, 1));
