@@ -4,6 +4,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { Badge, Pagination } from "@/components/ui";
 import { DataTable, PageHeader, type Column } from "@/components/admin/DataTable";
+import { ActionButton } from "@/components/admin/ActionButton";
 import { bookingStatusTone, statusLabel } from "@/lib/supplier";
 import { formatMoney } from "@/lib/money";
 import { fmtDate, pageParam } from "@/lib/admin";
@@ -97,6 +98,39 @@ export default async function AdminBookingsPage({
       key: "status",
       header: "Status",
       render: (b) => <Badge tone={bookingStatusTone(b.status)}>{statusLabel(b.status)}</Badge>,
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      className: "w-px whitespace-nowrap",
+      render: (b) => {
+        const endpoint = `/api/bookings/${b.reference}`;
+        const cancellable = ["PENDING", "AWAITING_PAYMENT", "PAID", "CONFIRMED", "SUPPLIER_CONFIRMATION_REQUIRED"].includes(b.status);
+        return (
+          <div className="flex flex-wrap items-center gap-1.5">
+            {(b.status === "PAID" || b.status === "SUPPLIER_CONFIRMATION_REQUIRED") && (
+              <ActionButton endpoint={endpoint} body={{ action: "status", status: "CONFIRMED" }} label="Confirm" variant="primary" />
+            )}
+            {(b.status === "PAID" || b.status === "CONFIRMED" || b.status === "SUPPLIER_CONFIRMATION_REQUIRED") && (
+              <ActionButton endpoint={endpoint} body={{ action: "status", status: "COMPLETED" }} label="Complete" />
+            )}
+            {(b.status === "CONFIRMED" || b.status === "SUPPLIER_CONFIRMATION_REQUIRED") && (
+              <ActionButton endpoint={endpoint} body={{ action: "status", status: "NO_SHOW" }} label="No-show" confirm={`Mark ${b.reference} as no-show?`} />
+            )}
+            {cancellable && (
+              <ActionButton
+                endpoint={endpoint}
+                body={{ action: "cancel" }}
+                prompt="Cancellation reason:"
+                promptKey="reason"
+                label="Cancel"
+                variant="danger"
+                confirm={`Cancel booking ${b.reference}? Paid bookings also open a refund request.`}
+              />
+            )}
+          </div>
+        );
+      },
     },
   ];
 

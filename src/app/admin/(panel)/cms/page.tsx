@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
-import { Badge, StatCard } from "@/components/ui";
+import { Badge, ButtonLink, StatCard } from "@/components/ui";
 import { DataTable, PageHeader, type Column } from "@/components/admin/DataTable";
+import { ActionButton } from "@/components/admin/ActionButton";
 import { fmtDate } from "@/lib/admin";
 import { statusLabel } from "@/lib/supplier";
 
@@ -34,6 +35,23 @@ export default async function AdminCmsPage() {
     ) },
     { key: "status", header: "Status", render: (p) => <Badge tone={CONTENT_TONE(p.status)}>{statusLabel(p.status)}</Badge> },
     { key: "updated", header: "Updated", render: (p) => <span className="text-slate-500">{fmtDate(p.updatedAt)}</span> },
+    {
+      key: "actions",
+      header: "Actions",
+      className: "w-px whitespace-nowrap",
+      render: (p) => (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <ButtonLink href={`/admin/cms/pages/${p.id}/edit`} variant="outline" size="sm">Edit</ButtonLink>
+          <ActionButton
+            endpoint={`/api/admin/pages/${p.id}`}
+            method="DELETE"
+            label="Delete"
+            variant="danger"
+            confirm={`Delete page “${p.title}”?`}
+          />
+        </div>
+      ),
+    },
   ];
 
   const postCols: Column<PostRow>[] = [
@@ -49,6 +67,23 @@ export default async function AdminCmsPage() {
     { key: "q", header: "Question", render: (f) => <span className="line-clamp-1 text-slate-700">{f.question}</span> },
     { key: "scope", header: "Scope", render: (f) => <Badge tone="neutral">{f.scope}</Badge> },
     { key: "active", header: "Active", render: (f) => <Badge tone={f.active ? "green" : "neutral"}>{f.active ? "Yes" : "No"}</Badge> },
+    {
+      key: "actions",
+      header: "Actions",
+      className: "w-px whitespace-nowrap",
+      render: (f) => (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <ButtonLink href={`/admin/cms/faqs/${f.id}/edit`} variant="outline" size="sm">Edit</ButtonLink>
+          <ActionButton
+            endpoint={`/api/admin/faqs/${f.id}`}
+            method="DELETE"
+            label="Delete"
+            variant="danger"
+            confirm={`Delete FAQ “${f.question}”?`}
+          />
+        </div>
+      ),
+    },
   ];
 
   const bannerCols: Column<BannerRow>[] = [
@@ -56,6 +91,19 @@ export default async function AdminCmsPage() {
     { key: "position", header: "Position", render: (b) => <Badge tone="neutral">{b.position}</Badge> },
     { key: "link", header: "Link", render: (b) => <span className="text-slate-500">{b.link || "—"}</span> },
     { key: "active", header: "Active", render: (b) => <Badge tone={b.active ? "green" : "neutral"}>{b.active ? "Yes" : "No"}</Badge> },
+    {
+      key: "actions",
+      header: "Actions",
+      className: "w-px whitespace-nowrap",
+      render: (b) => (
+        <ActionButton
+          endpoint={`/api/admin/banners/${b.id}`}
+          method="PATCH"
+          body={{ active: !b.active }}
+          label={b.active ? "Deactivate" : "Activate"}
+        />
+      ),
+    },
   ];
 
   const menuCols: Column<MenuRow>[] = [
@@ -63,6 +111,19 @@ export default async function AdminCmsPage() {
     { key: "url", header: "URL", render: (m) => <span className="font-mono text-xs text-slate-500">{m.url}</span> },
     { key: "location", header: "Location", render: (m) => <Badge tone="neutral">{m.location}</Badge> },
     { key: "active", header: "Active", render: (m) => <Badge tone={m.active ? "green" : "neutral"}>{m.active ? "Yes" : "No"}</Badge> },
+    {
+      key: "actions",
+      header: "Actions",
+      className: "w-px whitespace-nowrap",
+      render: (m) => (
+        <ActionButton
+          endpoint={`/api/admin/menus/${m.id}`}
+          method="PATCH"
+          body={{ active: !m.active }}
+          label={m.active ? "Deactivate" : "Activate"}
+        />
+      ),
+    },
   ];
 
   const landingCols: Column<LandingRow>[] = [
@@ -75,7 +136,17 @@ export default async function AdminCmsPage() {
 
   return (
     <>
-      <PageHeader eyebrow="Content" title="CMS" subtitle="Pages, guides, FAQs, menus and landing pages." />
+      <PageHeader
+        eyebrow="Content"
+        title="CMS"
+        subtitle="Pages, guides, FAQs, menus and landing pages."
+        actions={
+          <>
+            <ButtonLink href="/admin/cms/pages/new" variant="outline">+ New page</ButtonLink>
+            <ButtonLink href="/admin/cms/faqs/new" variant="dark">+ New FAQ</ButtonLink>
+          </>
+        }
+      />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Pages" value={pages.length} icon="📄" />

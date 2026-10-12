@@ -133,7 +133,8 @@ export default async function AdminReportsPage({
         subtitle="Revenue, commission and payout reporting."
       />
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-2">
         {RANGES.map((r) => (
           <Link
             key={r.key}
@@ -145,6 +146,21 @@ export default async function AdminReportsPage({
             {r.label}
           </Link>
         ))}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <a
+            href={`/api/admin/reports/export?range=${range.key}&table=bookings`}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
+          >
+            ⬇ Bookings CSV
+          </a>
+          <a
+            href={`/api/admin/reports/export?range=${range.key}&table=monthly`}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
+          >
+            ⬇ Monthly summary CSV
+          </a>
+        </div>
       </div>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5">
