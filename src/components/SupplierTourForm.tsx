@@ -163,6 +163,10 @@ export function SupplierTourForm({
   const [uploading, setUploading] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [categoryList, setCategoryList] = useState<Ref[]>(categories);
+  const [newCategory, setNewCategory] = useState("");
+  const [addingCategory, setAddingCategory] = useState(false);
+  const [categoryError, setCategoryError] = useState<string | null>(null);
 
   const set = <K extends keyof TourFormValues>(key: K) => (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
@@ -233,6 +237,42 @@ export function SupplierTourForm({
         ? prev.categoryLinks.filter((c) => c !== id)
         : [...prev.categoryLinks, id],
     }));
+
+  /** Adds a category from the tour form (reuses an existing one on a name match). */
+  async function addCategory() {
+    const name = newCategory.trim();
+    if (name.length < 2) {
+      setCategoryError("Type a category name (at least 2 characters).");
+      return;
+    }
+    setAddingCategory(true);
+    setCategoryError(null);
+    try {
+      const res = await fetch("/api/supplier/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      const data = await res.json().catch(() => ({} as { error?: { message?: string }; category?: Ref }));
+      if (!res.ok || !data.category) {
+        setCategoryError(data?.error?.message ?? "Could not add this category.");
+        return;
+      }
+      const added = data.category;
+      setCategoryList((prev) => (prev.some((c) => c.id === added.id) ? prev : [...prev, added]));
+      setV((prev) =>
+        prev.categoryLinks.includes(added.id)
+          ? prev
+          : { ...prev, categoryLinks: [...prev.categoryLinks, added.id] }
+      );
+      setNewCategory("");
+      setSaved(null);
+    } catch {
+      setCategoryError("Network error — the category was not added.");
+    } finally {
+      setAddingCategory(false);
+    }
+  }
 
   const pricePreview = useMemo(() => {
     const cents = (s: string) => (s.trim() ? parseMoneyInput(s) : 0);
@@ -532,7 +572,7 @@ export function SupplierTourForm({
               <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500">Categories</h3>
               <p className="mt-1 text-xs text-slate-500">Select every category this tour belongs to.</p>
               <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                {categories.map((c) => (
+                {categoryList.map((c) => (
                   <label key={c.id} className="flex items-center gap-2 text-sm font-semibold text-slate-700">
                     <input
                       type="checkbox"
@@ -542,8 +582,40 @@ export function SupplierTourForm({
                     {c.name}
                   </label>
                 ))}
-                {categories.length === 0 && <p className="text-sm text-slate-400">No categories available.</p>}
+                {categoryList.length === 0 && <p className="text-sm text-slate-400">No categories available yet — add the first one below.</p>}
               </div>
+
+              <div className="mt-4 flex flex-wrap items-end gap-2 border-t border-slate-100 pt-4">
+                <Field
+                  label="Add a category"
+                  htmlFor="new-category"
+                  hint="Pick a name that isn't listed and press Add — it is selected for you."
+                  className="min-w-[240px] flex-1"
+                >
+                  <Input
+                    id="new-category"
+                    value={newCategory}
+                    onChange={(e) => {
+                      setNewCategory(e.target.value);
+                      setCategoryError(null);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        void addCategory();
+                      }
+                    }}
+                    maxLength={60}
+                    placeholder="Jet ski"
+                  />
+                </Field>
+                <div className="flex items-center pb-6">
+                  <Button type="button" variant="outline" size="sm" onClick={() => void addCategory()} disabled={addingCategory}>
+                    {addingCategory ? "Adding…" : "+ Add category"}
+                  </Button>
+                </div>
+              </div>
+              {categoryError && <p className="mt-2 text-sm font-semibold text-red-600">{categoryError}</p>}
             </div>
           </Section>
 
