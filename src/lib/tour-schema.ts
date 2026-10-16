@@ -14,6 +14,16 @@ const optionalText = (max: number) =>
     .optional()
     .transform((v) => (v ? v : undefined));
 
+/**
+ * Rich text written with the in-form editor (markdown). Deliberately has no
+ * length cap — suppliers may write as much as they need.
+ */
+const optionalRich = z
+  .string()
+  .trim()
+  .optional()
+  .transform((v) => (v ? v : undefined));
+
 /** A price tier inside a pricing option (e.g. "2 travellers", "Group of 4+"). */
 export const optionTierSchema = z.object({
   id: z.string().optional(),
@@ -46,8 +56,8 @@ export const destinationLinkSchema = z.object({
 
 export const itineraryItemSchema = z.object({
   time: optionalText(30),
-  title: z.string().trim().min(1).max(140),
-  text: optionalText(2000),
+  title: z.string().trim().min(1),
+  text: optionalRich,
 });
 
 export const faqItemSchema = z.object({
@@ -113,11 +123,11 @@ export const tourSchema = z.object({
   maxAdvanceDays: z.number().int().min(1).max(1095),
 
   // Content
-  highlights: z.array(z.string().trim().min(1).max(200)).max(30).default([]),
+  highlights: z.array(z.string().trim().min(1)).max(30).default([]),
   inclusions: z.array(z.string().trim().min(1).max(300)).max(40).default([]),
   exclusions: z.array(z.string().trim().min(1).max(300)).max(40).default([]),
   whatToBring: z.array(z.string().trim().min(1).max(200)).max(30).default([]),
-  importantInfo: optionalText(4000),
+  importantInfo: optionalRich,
   itinerary: z.array(itineraryItemSchema).max(60).default([]),
   faq: z.array(faqItemSchema).max(30).default([]),
 

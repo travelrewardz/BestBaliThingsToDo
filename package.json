@@ -48,6 +48,7 @@
     "@types/react-dom": "^19.3.0",
     "eslint": "^9.39.5",
     "eslint-config-next": "16.4.0",
+    "linkedom": "^0.18.13",
     "prisma": "6.19.3",
     "sharp": "^0.35.5",
     "tailwindcss": "^4.3.3",

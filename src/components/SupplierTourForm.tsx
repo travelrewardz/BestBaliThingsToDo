@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Alert, Badge, Button, Field, Input, Select, Textarea } from "@/components/ui";
+import { RichTextEditor } from "@/components/RichTextEditor";
 import { formatMoney, parseMoneyInput } from "@/lib/money";
 import { CURRENCIES } from "@/lib/tour-schema";
 
@@ -699,8 +700,21 @@ export function SupplierTourForm({
           </Section>
 
           <Section title="Important note" description="Anything guests must know before they book.">
-            <Field label="Important note" htmlFor="importantInfo">
-              <Textarea id="importantInfo" value={v.importantInfo} onChange={set("importantInfo")} className="min-h-24" />
+            <Field
+              label="Important note"
+              htmlFor="importantInfo"
+              hint="Rich text — bold, italic, lists and links. No character limit."
+            >
+              <RichTextEditor
+                id="importantInfo"
+                value={v.importantInfo}
+                placeholder="Bring a towel, wear shoes you don't mind getting muddy…"
+                minHeightClass="min-h-32"
+                onChange={(val) => {
+                  setV((prev) => ({ ...prev, importantInfo: val }));
+                  setSaved(null);
+                }}
+              />
             </Field>
           </Section>
 
@@ -796,8 +810,21 @@ export function SupplierTourForm({
       {/* ============ HIGHLIGHTS & ITINERARY ============ */}
       {tab === "content" && (
         <>
-          <Section title="Highlights" description="One highlight per line — shown as a bullet list.">
-            <Textarea id="highlights" value={v.highlights} onChange={set("highlights")} className="min-h-32" />
+          <Section
+            title="Highlights"
+            description="One highlight per line — each line becomes a bullet. Bold, italic, lists and links are supported and there is no character limit."
+          >
+            <RichTextEditor
+              id="highlights"
+              variant="list"
+              value={v.highlights}
+              placeholder="Hotel pickup included · Small groups of 8 · Free cancellation"
+              minHeightClass="min-h-32"
+              onChange={(val) => {
+                setV((prev) => ({ ...prev, highlights: val }));
+                setSaved(null);
+              }}
+            />
           </Section>
 
           <Section title="Include & Exclude" description="One item per line.">
@@ -850,12 +877,21 @@ export function SupplierTourForm({
                       </Button>
                     </div>
                   </div>
-                  <Field label="Details" htmlFor={`it-text-${i}`} className="mt-3">
-                    <Textarea
+                  <Field
+                    label="Details"
+                    htmlFor={`it-text-${i}`}
+                    className="mt-3"
+                    hint="Rich text — bold, italic, lists and links. No character limit."
+                  >
+                    <RichTextEditor
                       id={`it-text-${i}`}
                       value={row.text}
-                      onChange={(e) => setItinerary(i, { text: e.target.value })}
-                      className="min-h-20"
+                      placeholder="What happens at this stop…"
+                      minHeightClass="min-h-24"
+                      onChange={(val) => {
+                        setItinerary(i, { text: val });
+                        setSaved(null);
+                      }}
                     />
                   </Field>
                 </div>

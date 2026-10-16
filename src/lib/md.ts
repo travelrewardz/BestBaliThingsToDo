@@ -13,8 +13,27 @@ function escapeHtml(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
+/**
+ * Escape Markdown control characters so plain text renders literally.
+ * Used when converting rich-text HTML back into markdown.
+ */
+export function escapeMdText(text: string): string {
+  let out = (text || "").replace(/[\\`*_\[\]~|]/g, (ch) => `\\${ch}`);
+  // Block markers only matter at the start of a line.
+  out = out.replace(/^([ \t]*)(#{1,6} |[-+] |> )/gm, (_m, ws: string, marker: string) => `${ws}\\${marker}`);
+  out = out.replace(/^([ \t]*)(\d+\. )/gm, (_m, ws: string, marker: string) => `${ws}\\${marker}`);
+  out = out.replace(/^([ \t]*)(-{3,})[ \t]*$/gm, (_m, ws: string, dashes: string) => `${ws}\\${dashes}`);
+  return out;
+}
+
 function inline(s: string): string {
-  let out = s;
+  // Stash backslash-escaped punctuation first so the formatting rules below
+  // can't reinterpret it, then restore it at the very end.
+  const stash: string[] = [];
+  let out = s.replace(/\\([!-\/:-@\[-`{-~])/g, (_m, ch: string) => {
+    stash.push(ch);
+    return `\u0000${stash.length - 1}\u0000`;
+  });
   out = out.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (_m, alt, src) => {
     const safe = String(src).startsWith("/") || /^https?:\/\//i.test(src) ? src : "#";
     return `<img src="${escapeHtml(safe)}" alt="${escapeHtml(alt)}" loading="lazy" />`;
@@ -29,7 +48,16 @@ function inline(s: string): string {
   out = out.replace(/__([^_]+)__/g, "<strong>$1</strong>");
   out = out.replace(/\*([^*]+)\*/g, "<em>$1</em>");
   out = out.replace(/~~([^~]+)~~/g, "<del>$1</del>");
+  if (stash.length) {
+    out = out.replace(/\u0000(\d+)\u0000/g, (_m, i: string) => stash[Number(i)] ?? "");
+  }
   return out;
+}
+
+/** Render markdown as inline HTML (no block tags) — input HTML is escaped first. */
+export function mdInline(md: string): string {
+  if (!md) return "";
+  return inline(escapeHtml(md));
 }
 
 export function mdToHtml(md: string): string {

@@ -9,7 +9,7 @@ import { FavoriteButton } from "@/components/FavoriteButton";
 import { BookingWidget } from "@/components/BookingWidget";
 import { formatMoney } from "@/lib/money";
 import { effectiveFromPriceCents } from "@/lib/tours";
-import { mdToHtml, mdToText, parseStringArray } from "@/lib/md";
+import { mdInline, mdToHtml, mdToText, parseStringArray } from "@/lib/md";
 import { buildMetadata, jsonLd, productJsonLd, faqJsonLd, breadcrumbJsonLd, absoluteUrl, getSeoMeta } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
@@ -136,7 +136,7 @@ function TickList({ items, tone = "green" }: { items: string[]; tone?: "green" |
       {items.map((item, i) => (
         <li key={i} className="flex items-start gap-2 text-sm text-slate-700">
           <span aria-hidden>{tone === "green" ? "✅" : "❌"}</span>
-          <span>{item}</span>
+          <span dangerouslySetInnerHTML={{ __html: mdInline(item) }} />
         </li>
       ))}
     </ul>
@@ -303,7 +303,12 @@ export default async function TourPage({ params }: { params: Promise<{ slug: str
                       )}
                       <h3 className="font-display font-bold text-slate-900">{step.title}</h3>
                     </div>
-                    {step.text && <p className="mt-1 text-sm text-slate-600">{step.text}</p>}
+                    {step.text && (
+                      <div
+                        className="mt-1.5 text-sm text-slate-600 [&_p]:my-1.5"
+                        dangerouslySetInnerHTML={{ __html: mdToHtml(step.text) }}
+                      />
+                    )}
                   </li>
                 ))}
               </ol>
