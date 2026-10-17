@@ -10,6 +10,7 @@ const emptyQuestion = (): TourQuestionRow => ({
   label: "",
   type: "TEXT",
   remark: "",
+  choices: "",
   required: false,
 });
 
@@ -267,6 +268,7 @@ export function OptionEditorModal({
                       >
                         <option value="READ_ONLY">Read only (notice — shown, not answered)</option>
                         <option value="TEXT">Text (customer types an answer)</option>
+                        <option value="SELECT">Select (pick an option)</option>
                       </Select>
                     </Field>
                     <Field
@@ -289,7 +291,22 @@ export function OptionEditorModal({
                       />
                     </Field>
                   </div>
-                  {q.type === "TEXT" && (
+                  {q.type === "SELECT" && (
+                    <Field
+                      label="Options (one per line)"
+                      hint="Customers pick one of these from a dropdown."
+                      className="mt-2"
+                    >
+                      <Textarea
+                        aria-label={`Field ${qi + 1} choices`}
+                        value={q.choices}
+                        onChange={(e) => setQuestion(qi, { choices: e.target.value })}
+                        placeholder={"Standard\nVIP\nWith transport"}
+                        className="min-h-20"
+                      />
+                    </Field>
+                  )}
+                  {(q.type === "TEXT" || q.type === "SELECT") && (
                     <label className="mt-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
                       <input
                         type="checkbox"

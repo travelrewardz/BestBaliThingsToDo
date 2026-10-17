@@ -7,6 +7,7 @@ describe("option booking questions (additional info)", () => {
     expect(q).toEqual({
       label: "Departure (pick up) Detail",
       type: "TEXT",
+      choices: [],
       required: false,
     });
   });
@@ -25,8 +26,40 @@ describe("option booking questions (additional info)", () => {
   it("rejects an empty label and an unknown answer type", () => {
     expect(optionQuestionSchema.safeParse({ label: "   " }).success).toBe(false);
     expect(
-      optionQuestionSchema.safeParse({ label: "Pickup", type: "SELECT" }).success
+      optionQuestionSchema.safeParse({ label: "Pickup", type: "CHOICE" }).success
     ).toBe(false);
+  });
+
+  it("accepts SELECT with choices and trims each one", () => {
+    const q = optionQuestionSchema.parse({
+      label: "Pickup type",
+      type: "SELECT",
+      choices: [" Hotel ", "Airport", "Port"],
+      required: true,
+    });
+    expect(q.choices).toEqual(["Hotel", "Airport", "Port"]);
+    expect(q.required).toBe(true);
+  });
+
+  it("rejects SELECT without choices and blank choices", () => {
+    expect(
+      optionQuestionSchema.safeParse({ label: "Pickup type", type: "SELECT" }).success
+    ).toBe(false);
+    // every choice must be non-empty after trimming
+    expect(
+      optionQuestionSchema.safeParse({
+        label: "Pickup type",
+        type: "SELECT",
+        choices: ["Hotel", "   "],
+      }).success
+    ).toBe(false);
+  });
+
+  it("defaults choices to an empty list for TEXT and READ_ONLY", () => {
+    expect(optionQuestionSchema.parse({ label: "Notes" }).choices).toEqual([]);
+    expect(
+      optionQuestionSchema.parse({ label: "Time", type: "READ_ONLY" }).choices
+    ).toEqual([]);
   });
 
   it("caps a label at 120 chars and remark at 300", () => {

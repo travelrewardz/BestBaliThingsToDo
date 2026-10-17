@@ -8,8 +8,9 @@ import { formatMoney } from "@/lib/money";
 type OptionQuestion = {
   id: string;
   label: string;
-  type: "READ_ONLY" | "TEXT";
+  type: "READ_ONLY" | "TEXT" | "SELECT";
   remark: string | null;
+  choices: string[];
   required: boolean;
 };
 
@@ -206,7 +207,8 @@ export function BookingWidget({
       return;
     }
     const missing = optionQuestions.find(
-      (q) => q.type === "TEXT" && q.required && !(answers[q.id] ?? "").trim()
+      (q) =>
+        (q.type === "TEXT" || q.type === "SELECT") && q.required && !(answers[q.id] ?? "").trim()
     );
     if (missing) {
       setError(`Please answer "${missing.label}" — it is required for this option.`);
@@ -438,6 +440,28 @@ export function BookingWidget({
                     <span className="font-semibold">{q.label}</span>
                     {q.remark && <span className="text-slate-600"> — {q.remark}</span>}
                   </p>
+                ) : q.type === "SELECT" ? (
+                  <Field
+                    key={q.id}
+                    label={q.label}
+                    htmlFor={`bw-q-${q.id}`}
+                    required={q.required}
+                    hint={q.remark || undefined}
+                    className="mt-2"
+                  >
+                    <Select
+                      id={`bw-q-${q.id}`}
+                      value={answers[q.id] ?? ""}
+                      onChange={(e) => setAnswers((a) => ({ ...a, [q.id]: e.target.value }))}
+                    >
+                      <option value="">Pick an option…</option>
+                      {q.choices.map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
                 ) : (
                   <Field
                     key={q.id}

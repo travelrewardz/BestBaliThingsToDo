@@ -20,8 +20,10 @@ export type TourTierRow = {
 export type TourQuestionRow = {
   id?: string;
   label: string;
-  type: "READ_ONLY" | "TEXT";
+  type: "READ_ONLY" | "TEXT" | "SELECT";
   remark: string;
+  /** Options for SELECT questions (one per line in the UI). */
+  choices: string;
   required: boolean;
 };
 
@@ -111,6 +113,7 @@ const emptyOption = (): TourOptionRow => ({
   tiers: [],
   questions: [],
 });
+
 
 const lines = (value: string) =>
   value
@@ -398,7 +401,8 @@ export function SupplierTourForm({
                 label: q.label,
                 type: q.type,
                 remark: q.remark.trim() || undefined,
-                required: q.type === "TEXT" ? q.required : false,
+                choices: lines(q.choices),
+                required: q.type === "TEXT" || q.type === "SELECT" ? q.required : false,
               })),
           })),
         media: v.mediaUrls.map((u) => u.trim()).filter(Boolean).map((url) => ({ url })),

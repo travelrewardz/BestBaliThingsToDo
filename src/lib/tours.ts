@@ -138,6 +138,7 @@ export async function syncTourChildren(tx: Prisma.TransactionClient, productId: 
         label: question.label,
         type: question.type,
         remark: question.remark ?? null,
+        choices: JSON.stringify(question.type === "SELECT" ? question.choices : []),
         required: question.required,
         sortOrder: qIndex,
       };

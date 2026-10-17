@@ -356,8 +356,9 @@ model OptionBookingQuestion {
   optionId String
   option   ProductOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
   label    String // e.g. "Departure (pick up) Time"
-  type     String        @default("TEXT") // READ_ONLY (notice, no input) | TEXT (customer types)
+  type     String        @default("TEXT") // READ_ONLY (notice) | TEXT (customer types) | SELECT (pick one of choices)
   remark   String? // help text; for READ_ONLY this is the notice value shown to the customer
+  choices  String        @default("[]") // JSON string[] — the options for SELECT questions
   required Boolean       @default(false)
   sortOrder Int          @default(0)
 

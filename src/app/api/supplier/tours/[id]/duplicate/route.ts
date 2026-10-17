@@ -105,6 +105,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
                   label: q.label,
                   type: q.type,
                   remark: q.remark,
+                  choices: q.choices,
                   required: q.required,
                   sortOrder: qi,
                 })),

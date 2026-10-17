@@ -150,8 +150,9 @@ export default async function EditSupplierTourPage({
               questions: o.questions.map((q) => ({
                 id: q.id,
                 label: q.label,
-                type: q.type === "READ_ONLY" ? "READ_ONLY" : "TEXT",
+                type: q.type === "READ_ONLY" || q.type === "SELECT" ? q.type : "TEXT",
                 remark: q.remark ?? "",
+                choices: parseStringList(q.choices).join("\n"),
                 required: q.required,
               })),
             })),

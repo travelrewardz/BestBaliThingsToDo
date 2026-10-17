@@ -21,7 +21,7 @@ const schema = z.object({
       z.object({
         questionId: z.string().min(1),
         label: z.string().trim().min(1).max(120),
-        type: z.enum(["READ_ONLY", "TEXT"]),
+        type: z.enum(["READ_ONLY", "TEXT", "SELECT"]),
         value: z.string().trim().max(500).default(""),
       })
     )

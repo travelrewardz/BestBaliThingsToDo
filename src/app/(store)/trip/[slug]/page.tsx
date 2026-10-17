@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { parseStringList } from "@/lib/tours";
 import { Badge, ButtonLink, SmartImage, Stars } from "@/components/ui";
 import { TourCard } from "@/components/TourCard";
 import { FavoriteButton } from "@/components/FavoriteButton";
@@ -464,8 +465,9 @@ export default async function TourPage({ params }: { params: Promise<{ slug: str
               questions: o.questions.map((q) => ({
                 id: q.id,
                 label: q.label,
-                type: q.type as "READ_ONLY" | "TEXT",
+                type: q.type as "READ_ONLY" | "TEXT" | "SELECT",
                 remark: q.remark,
+                choices: parseStringList(q.choices),
                 required: q.required,
               })),
             }))}

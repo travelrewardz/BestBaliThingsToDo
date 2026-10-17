@@ -18,6 +18,7 @@ import { applyBps, formatMoney } from "@/lib/money";
 import { sendEmail } from "@/lib/email";
 import { notify, notifyRole, notifySupplier, pushRealtime } from "@/lib/notifications";
 import { randomToken } from "@/lib/auth";
+import { parseStringList } from "@/lib/tours";
 import { logger, logError } from "@/lib/logger";
 import type { SessionUser } from "@/lib/auth";
 
@@ -242,7 +243,7 @@ export async function nextReference(
 export type BookingAnswerInput = {
   questionId: string;
   label: string;
-  type: "READ_ONLY" | "TEXT";
+  type: "READ_ONLY" | "TEXT" | "SELECT";
   value: string;
 };
 
@@ -282,13 +283,27 @@ export async function createBooking(input: CreateBookingInput): Promise<Booking>
     : [];
   if (questions.length) {
     const supplied = new Map((input.answers ?? []).map((a) => [a.questionId, a.value.trim()]));
-    const missing = questions.find((q) => q.type === "TEXT" && q.required && !supplied.get(q.id));
+    const missing = questions.find(
+      (q) =>
+        (q.type === "TEXT" || q.type === "SELECT") && q.required && !supplied.get(q.id)
+    );
     if (missing) {
       throw new BookingError(400, "invalid", `Please answer "${missing.label}" — it is required`);
     }
+    // A select answer must be one of the supplier's choices (never trust the client).
+    for (const q of questions) {
+      if (q.type !== "SELECT") continue;
+      const value = supplied.get(q.id);
+      if (!value) continue;
+      const choices = parseStringList(q.choices);
+      if (!choices.includes(value)) {
+        throw new BookingError(400, "invalid", `Please pick one of the options for "${q.label}"`);
+      }
+    }
   }
-  // Stored answers: read-only notices always; typed answers only when non-empty.
-  // Labels/remarks are copied from the current questions (snapshot).
+  // Stored answers: read-only notices always; typed/select answers only when
+  // non-empty. Labels/remarks/choices are copied from the current questions
+  // (snapshot).
   const answersToStore = questions
     .map((q, index) => ({
       questionId: q.id,

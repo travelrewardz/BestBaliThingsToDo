@@ -35,15 +35,32 @@ export const optionTierSchema = z.object({
 
 /**
  * Extra question asked of customers who pick this option (booking questions).
- * `READ_ONLY` shows the remark as a notice; `TEXT` lets the customer type an answer.
+ * `READ_ONLY` shows the remark as a notice; `TEXT` lets the customer type an
+ * answer; `SELECT` has them pick one of `choices`.
  */
-export const optionQuestionSchema = z.object({
-  id: z.string().optional(),
-  label: z.string().trim().min(1).max(120),
-  type: z.enum(["READ_ONLY", "TEXT"]).default("TEXT"),
-  remark: optionalText(300),
-  required: z.boolean().default(false),
-});
+export const optionQuestionSchema = z
+  .object({
+    id: z.string().optional(),
+    label: z.string().trim().min(1).max(120),
+    type: z.enum(["READ_ONLY", "TEXT", "SELECT"]).default("TEXT"),
+    remark: optionalText(300),
+    /** Options for SELECT questions. Empty for other types. */
+    choices: z
+      .array(z.string().trim().min(1).max(100))
+      .max(20)
+      .default([])
+      .transform((v) => v.filter(Boolean)),
+    required: z.boolean().default(false),
+  })
+  .superRefine((q, ctx) => {
+    if (q.type === "SELECT" && q.choices.length < 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["choices"],
+        message: "A select question needs at least one choice",
+      });
+    }
+  });
 
 export const tourOptionSchema = z.object({
   id: z.string().optional(),
