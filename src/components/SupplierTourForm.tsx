@@ -1055,42 +1055,10 @@ export function SupplierTourForm({
                         className="min-h-16"
                       />
                     </Field>
-                    <Field label={`Adult (${currency})`} htmlFor={`opt-adult-${i}`}>
-                      <Input
-                        id={`opt-adult-${i}`}
-                        inputMode="decimal"
-                        value={o.priceAdult}
-                        onChange={(e) => setOption(i, { priceAdult: e.target.value })}
-                      />
-                    </Field>
-                    <Field label={`Child (${currency})`} htmlFor={`opt-child-${i}`}>
-                      <Input
-                        id={`opt-child-${i}`}
-                        inputMode="decimal"
-                        value={o.priceChild}
-                        onChange={(e) => setOption(i, { priceChild: e.target.value })}
-                      />
-                    </Field>
-                    <Field label={`Infant (${currency})`} htmlFor={`opt-infant-${i}`}>
-                      <Input
-                        id={`opt-infant-${i}`}
-                        inputMode="decimal"
-                        value={o.priceInfant}
-                        onChange={(e) => setOption(i, { priceInfant: e.target.value })}
-                      />
-                    </Field>
-                    <Field
-                      label="Capacity offset"
-                      htmlFor={`opt-cap-${i}`}
-                      hint="Added to the default capacity (can be negative)."
-                    >
-                      <Input
-                        id={`opt-cap-${i}`}
-                        type="number"
-                        value={o.capacityOffset}
-                        onChange={(e) => setOption(i, { capacityOffset: e.target.value })}
-                      />
-                    </Field>
+                    {/* Adult/Child/Infant price and capacity offset are managed in the
+                        "Base price" and "Capacity & booking window" sections above —
+                        removed here as duplicates. Stored values are kept in state so
+                        existing options round-trip unchanged on save. */}
                     <Field
                       label="Agent / member net price"
                       htmlFor={`opt-net-${i}`}
