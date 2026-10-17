@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Alert, Badge, Button, Field, Input, Select, Textarea } from "@/components/ui";
 import { RichTextEditor } from "@/components/RichTextEditor";
+import { OptionEditorModal } from "@/components/OptionEditorModal";
 import { formatMoney, parseMoneyInput } from "@/lib/money";
 import { CURRENCIES } from "@/lib/tour-schema";
 
@@ -111,15 +112,6 @@ const emptyOption = (): TourOptionRow => ({
   questions: [],
 });
 
-const emptyTier = (): TourTierRow => ({ label: "", minPax: "1", maxPax: "", price: "" });
-
-const emptyQuestion = (): TourQuestionRow => ({
-  label: "",
-  type: "TEXT",
-  remark: "",
-  required: false,
-});
-
 const lines = (value: string) =>
   value
     .split("\n")
@@ -224,21 +216,27 @@ export function SupplierTourForm({
     }
   }
 
-  const setOption = (index: number, patch: Partial<TourOptionRow>) =>
-    setV((prev) => ({
-      ...prev,
-      options: prev.options.map((o, i) => (i === index ? { ...o, ...patch } : o)),
-    }));
+  // Pricing options open in a modal so the page stays short — the draft is
+  // edited in isolation and only committed on Save.
+  const [editing, setEditing] = useState<{
+    index: number;
+    isNew: boolean;
+    draft: TourOptionRow;
+  } | null>(null);
 
-  const setTier = (optIndex: number, tierIndex: number, patch: Partial<TourTierRow>) =>
-    setV((prev) => ({
-      ...prev,
-      options: prev.options.map((o, i) =>
-        i === optIndex
-          ? { ...o, tiers: o.tiers.map((t, ti) => (ti === tierIndex ? { ...t, ...patch } : t)) }
-          : o
-      ),
-    }));
+  const saveOptionDraft = () => {
+    if (!editing) return;
+    setV((prev) => {
+      const options = [...prev.options];
+      if (editing.isNew) {
+        options.push(editing.draft);
+      } else if (editing.index < options.length) {
+        options[editing.index] = editing.draft;
+      }
+      return { ...prev, options };
+    });
+    setEditing(null);
+  };
 
   const setItinerary = (index: number, patch: Partial<ItineraryRow>) =>
     setV((prev) => ({
@@ -1046,7 +1044,9 @@ export function SupplierTourForm({
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => setV((p) => ({ ...p, options: [...p.options, emptyOption()] }))}
+                onClick={() =>
+                  setEditing({ index: v.options.length, isNew: true, draft: emptyOption() })
+                }
               >
                 + Add option
               </Button>
@@ -1054,266 +1054,56 @@ export function SupplierTourForm({
 
             {v.options.length === 0 && <p className="mt-3 text-sm text-slate-400">No pricing options yet.</p>}
 
-            <div className="mt-3 space-y-5">
+            <div className="mt-3 space-y-2">
               {v.options.map((o, i) => (
-                <div key={i} className="rounded-xl border border-slate-200 p-3 sm:p-4">
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <Field label="Option name" htmlFor={`opt-name-${i}`} required>
-                      <Input
-                        id={`opt-name-${i}`}
-                        value={o.name}
-                        onChange={(e) => setOption(i, { name: e.target.value })}
-                        placeholder="Morning departure"
-                      />
-                    </Field>
-                    <Field label="Start time" htmlFor={`opt-time-${i}`}>
-                      <Input
-                        id={`opt-time-${i}`}
-                        value={o.startTime}
-                        onChange={(e) => setOption(i, { startTime: e.target.value })}
-                        placeholder="09:00"
-                      />
-                    </Field>
-                    <Field label="Description" htmlFor={`opt-desc-${i}`} className="sm:col-span-2">
-                      <Textarea
-                        id={`opt-desc-${i}`}
-                        value={o.description}
-                        onChange={(e) => setOption(i, { description: e.target.value })}
-                        className="min-h-16"
-                      />
-                    </Field>
-                    {/* Adult/Child/Infant price and capacity offset are managed in the
-                        "Base price" and "Capacity & booking window" sections above —
-                        removed here as duplicates. Stored values are kept in state so
-                        existing options round-trip unchanged on save. */}
-                    <Field
-                      label="Agent / member net price"
-                      htmlFor={`opt-net-${i}`}
-                      hint="Discount % off for agents/members. Leave empty if you don't offer one."
+                <div
+                  key={i}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 px-3 py-2.5"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold text-slate-900">
+                      {o.name || <span className="text-slate-400">Untitled option</span>}
+                    </p>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      {o.startTime ? `Starts ${o.startTime}` : "No start time"}
+                      {" · "}{o.tiers.length} tier{o.tiers.length === 1 ? "" : "s"}
+                      {o.questions.length > 0 &&
+                        ` · ${o.questions.length} additional field${o.questions.length === 1 ? "" : "s"}`}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge tone={o.active ? "green" : "neutral"}>
+                      {o.active ? "Active" : "Hidden"}
+                    </Badge>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        setEditing({
+                          index: i,
+                          isNew: false,
+                          draft: {
+                            ...o,
+                            tiers: o.tiers.map((t) => ({ ...t })),
+                            questions: o.questions.map((q) => ({ ...q })),
+                          },
+                        })
+                      }
                     >
-                      <Input
-                        id={`opt-net-${i}`}
-                        inputMode="decimal"
-                        value={o.agentNet}
-                        onChange={(e) => setOption(i, { agentNet: e.target.value })}
-                        placeholder="e.g. 10"
-                      />
-                    </Field>
-                    <div className="flex items-end gap-4">
-                      <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                        <input
-                          type="checkbox"
-                          checked={o.active}
-                          onChange={(e) => setOption(i, { active: e.target.checked })}
-                        />
-                        Active
-                      </label>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="text-red-600"
-                        onClick={() => setV((p) => ({ ...p, options: p.options.filter((_, idx) => idx !== i) }))}
-                      >
-                        Remove option
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 border-t border-slate-100 pt-3">
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-xs font-bold uppercase tracking-wide text-slate-500">
-                        Pricing tiers ({o.tiers.length})
-                      </h4>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setOption(i, { tiers: [...o.tiers, emptyTier()] })}
-                      >
-                        + Add tier
-                      </Button>
-                    </div>
-                    {o.tiers.length === 0 && (
-                      <p className="mt-2 text-xs text-slate-400">
-                        No tiers — this option uses the prices above.
-                      </p>
-                    )}
-                    <div className="mt-2 space-y-2">
-                      {o.tiers.map((t, ti) => (
-                        <div key={ti} className="grid gap-2 sm:grid-cols-[1fr_80px_80px_120px_auto]">
-                          <Field label="Label" htmlFor={`tier-label-${i}-${ti}`}>
-                            <Input
-                              id={`tier-label-${i}-${ti}`}
-                              value={t.label}
-                              onChange={(e) => setTier(i, ti, { label: e.target.value })}
-                              placeholder="2 travellers"
-                            />
-                          </Field>
-                          <Field label="Min pax" htmlFor={`tier-min-${i}-${ti}`}>
-                            <Input
-                              id={`tier-min-${i}-${ti}`}
-                              type="number"
-                              min="1"
-                              value={t.minPax}
-                              onChange={(e) => setTier(i, ti, { minPax: e.target.value })}
-                            />
-                          </Field>
-                          <Field label="Max pax" htmlFor={`tier-max-${i}-${ti}`}>
-                            <Input
-                              id={`tier-max-${i}-${ti}`}
-                              type="number"
-                              min="1"
-                              value={t.maxPax}
-                              onChange={(e) => setTier(i, ti, { maxPax: e.target.value })}
-                            />
-                          </Field>
-                          <Field label={`Price (${currency})`} htmlFor={`tier-price-${i}-${ti}`}>
-                            <Input
-                              id={`tier-price-${i}-${ti}`}
-                              inputMode="decimal"
-                              value={t.price}
-                              onChange={(e) => setTier(i, ti, { price: e.target.value })}
-                            />
-                          </Field>
-                          <div className="flex items-end">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="text-red-600"
-                              onClick={() => setOption(i, { tiers: o.tiers.filter((_, idx) => idx !== ti) })}
-                            >
-                              ✕
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="mt-4 border-t border-slate-100 pt-3">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h4 className="text-xs font-bold uppercase tracking-wide text-slate-500">
-                          Additional info (booking questions)
-                        </h4>
-                        <p className="mt-0.5 text-xs text-slate-400">
-                          Extra questions for customers who pick this option. Answers appear on the voucher.
-                        </p>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setOption(i, { questions: [...o.questions, emptyQuestion()] })}
-                      >
-                        + Add field
-                      </Button>
-                    </div>
-                    {o.questions.length === 0 && (
-                      <p className="mt-2 text-xs text-slate-400">
-                        No extra fields — customers only enter the standard details.
-                      </p>
-                    )}
-                    <div className="mt-2 space-y-3">
-                      {o.questions.map((q, qi) => (
-                        <div key={qi} className="rounded-xl border border-slate-200 p-3">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
-                              Field {qi + 1}
-                            </span>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="text-red-600"
-                              aria-label={`Remove field ${qi + 1}`}
-                              onClick={() =>
-                                setOption(i, { questions: o.questions.filter((_, idx) => idx !== qi) })
-                              }
-                            >
-                              🗑
-                            </Button>
-                          </div>
-                          <div className="mt-1.5">
-                            <Input
-                              aria-label={`Field ${qi + 1} label`}
-                              value={q.label}
-                              onChange={(e) =>
-                                setOption(i, {
-                                  questions: o.questions.map((x, xi) =>
-                                    xi === qi ? { ...x, label: e.target.value } : x
-                                  ),
-                                })
-                              }
-                              placeholder="Departure (pick up) Detail"
-                            />
-                          </div>
-                          <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                            <Field label="Answer type">
-                              <Select
-                                aria-label={`Field ${qi + 1} answer type`}
-                                value={q.type}
-                                onChange={(e) =>
-                                  setOption(i, {
-                                    questions: o.questions.map((x, xi) =>
-                                      xi === qi
-                                        ? { ...x, type: e.target.value as TourQuestionRow["type"] }
-                                        : x
-                                    ),
-                                  })
-                                }
-                              >
-                                <option value="READ_ONLY">Read only (notice — shown, not answered)</option>
-                                <option value="TEXT">Text (customer types an answer)</option>
-                              </Select>
-                            </Field>
-                            <Field
-                              label="Remark / help text"
-                              hint={
-                                q.type === "READ_ONLY"
-                                  ? "The notice text customers see for this field."
-                                  : "Placeholder / help text under the input."
-                              }
-                            >
-                              <Input
-                                aria-label={`Field ${qi + 1} remark`}
-                                value={q.remark}
-                                onChange={(e) =>
-                                  setOption(i, {
-                                    questions: o.questions.map((x, xi) =>
-                                      xi === qi ? { ...x, remark: e.target.value } : x
-                                    ),
-                                  })
-                                }
-                                placeholder={
-                                  q.type === "READ_ONLY"
-                                    ? "08:00 AM - 08:30 AM"
-                                    : "Please describe departure details (Hotel/Airport/Port)"
-                                }
-                              />
-                            </Field>
-                          </div>
-                          {q.type === "TEXT" && (
-                            <label className="mt-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
-                              <input
-                                type="checkbox"
-                                checked={q.required}
-                                onChange={(e) =>
-                                  setOption(i, {
-                                    questions: o.questions.map((x, xi) =>
-                                      xi === qi ? { ...x, required: e.target.checked } : x
-                                    ),
-                                  })
-                                }
-                              />
-                              Required field
-                            </label>
-                          )}
-                        </div>
-                      ))}
-                    </div>
+                      Edit
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="text-red-600"
+                      onClick={() =>
+                        setV((p) => ({ ...p, options: p.options.filter((_, idx) => idx !== i) }))
+                      }
+                    >
+                      Remove
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -1374,6 +1164,20 @@ export function SupplierTourForm({
           )}
         </div>
       </div>
+
+      {editing && (
+        <OptionEditorModal
+          index={editing.index}
+          isNew={editing.isNew}
+          draft={editing.draft}
+          currency={currency}
+          onChange={(patch) =>
+            setEditing((e) => (e ? { ...e, draft: { ...e.draft, ...patch } } : e))
+          }
+          onSave={saveOptionDraft}
+          onCancel={() => setEditing(null)}
+        />
+      )}
     </div>
   );
 }
