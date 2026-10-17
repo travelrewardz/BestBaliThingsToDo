@@ -10,7 +10,10 @@ import { SupplierTourForm } from "@/components/SupplierTourForm";
 export const metadata: Metadata = { title: "Edit tour" };
 
 type TourWithChildren = Prisma.ProductGetPayload<{
-  include: { options: { include: { tiers: true } }; media: true };
+  include: {
+    options: { include: { tiers: true; questions: true } };
+    media: true;
+  };
 }>;
 
 const money = (cents: number | null | undefined) =>
@@ -31,7 +34,13 @@ export default async function EditSupplierTourPage({
     prisma.product.findFirst({
       where: { id, supplierId: supplier.id },
       include: {
-        options: { orderBy: { sortOrder: "asc" }, include: { tiers: { orderBy: { sortOrder: "asc" } } } },
+        options: {
+          orderBy: { sortOrder: "asc" },
+          include: {
+            tiers: { orderBy: { sortOrder: "asc" } },
+            questions: { orderBy: { sortOrder: "asc" } },
+          },
+        },
         media: { orderBy: [{ isPrimary: "desc" }, { sortOrder: "asc" }] },
       },
     }) as Promise<TourWithChildren | null>,
@@ -137,6 +146,13 @@ export default async function EditSupplierTourPage({
                 minPax: String(t.minPax),
                 maxPax: t.maxPax != null ? String(t.maxPax) : "",
                 price: money(t.priceCents),
+              })),
+              questions: o.questions.map((q) => ({
+                id: q.id,
+                label: q.label,
+                type: q.type === "READ_ONLY" ? "READ_ONLY" : "TEXT",
+                remark: q.remark ?? "",
+                required: q.required,
               })),
             })),
           }}

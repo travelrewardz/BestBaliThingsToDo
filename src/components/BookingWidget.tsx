@@ -5,11 +5,20 @@ import { useRouter } from "next/navigation";
 import { Alert, Button, Field, Input, Select, Textarea } from "@/components/ui";
 import { formatMoney } from "@/lib/money";
 
+type OptionQuestion = {
+  id: string;
+  label: string;
+  type: "READ_ONLY" | "TEXT";
+  remark: string | null;
+  required: boolean;
+};
+
 type OptionRef = {
   id: string;
   name: string;
   startTime: string | null;
   priceAdultCents: number | null;
+  questions?: OptionQuestion[];
 };
 
 type Quote = {
@@ -80,7 +89,14 @@ export function BookingWidget({
   const [step, setStep] = useState<"choose" | "details">("choose");
   const [user, setUser] = useState<{ name: string; email: string; role: string } | null>(null);
   const [form, setForm] = useState({ customerName: "", customerPhone: "", pickupLocation: "", specialRequests: "" });
+  const [answers, setAnswers] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
+
+  const selectedOption = useMemo(
+    () => options.find((o) => o.id === optionId),
+    [options, optionId]
+  );
+  const optionQuestions = selectedOption?.questions ?? [];
 
   useEffect(() => {
     let active = true;
@@ -189,6 +205,13 @@ export function BookingWidget({
       setError("Please enter the lead traveller's name.");
       return;
     }
+    const missing = optionQuestions.find(
+      (q) => q.type === "TEXT" && q.required && !(answers[q.id] ?? "").trim()
+    );
+    if (missing) {
+      setError(`Please answer "${missing.label}" — it is required for this option.`);
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
@@ -207,6 +230,14 @@ export function BookingWidget({
           customerPhone: form.customerPhone || null,
           pickupLocation: form.pickupLocation || null,
           specialRequests: form.specialRequests || null,
+          answers: optionQuestions
+            .map((q) => ({
+              questionId: q.id,
+              label: q.label,
+              type: q.type,
+              value: q.type === "READ_ONLY" ? (q.remark ?? "") : (answers[q.id] ?? "").trim(),
+            }))
+            .filter((a) => a.type === "READ_ONLY" || a.value),
           couponCode: coupon.trim() || null,
         }),
       });
@@ -396,6 +427,37 @@ export function BookingWidget({
               className="min-h-20"
             />
           </Field>
+          {optionQuestions.length > 0 && (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <h4 className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                Additional info
+              </h4>
+              {optionQuestions.map((q) =>
+                q.type === "READ_ONLY" ? (
+                  <p key={q.id} className="mt-2 text-sm text-slate-700">
+                    <span className="font-semibold">{q.label}</span>
+                    {q.remark && <span className="text-slate-600"> — {q.remark}</span>}
+                  </p>
+                ) : (
+                  <Field
+                    key={q.id}
+                    label={q.label}
+                    htmlFor={`bw-q-${q.id}`}
+                    required={q.required}
+                    hint={q.remark || undefined}
+                    className="mt-2"
+                  >
+                    <Input
+                      id={`bw-q-${q.id}`}
+                      value={answers[q.id] ?? ""}
+                      onChange={(e) => setAnswers((a) => ({ ...a, [q.id]: e.target.value }))}
+                      maxLength={500}
+                    />
+                  </Field>
+                )
+              )}
+            </div>
+          )}
           <div className="flex gap-2">
             <Button className="flex-1" onClick={() => void confirmBooking()} disabled={submitting || !canBook}>
               {submitting ? "Booking…" : `Confirm booking${quote ? ` · ${display(quote.totalCents)}` : ""}`}

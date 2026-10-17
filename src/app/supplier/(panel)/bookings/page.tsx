@@ -89,6 +89,10 @@ export default async function SupplierBookingsPage({
         totalCents: true,
         supplierEarningsCents: true,
         currency: true,
+        answers: {
+          orderBy: { sortOrder: "asc" },
+          select: { id: true, label: true, value: true },
+        },
       },
     }),
   ]);
@@ -189,6 +193,16 @@ export default async function SupplierBookingsPage({
                   </>
                 )}
               </div>
+              {b.answers.length > 0 && (
+                <dl className="mt-3 space-y-0.5 border-t border-slate-100 pt-3 text-sm">
+                  {b.answers.map((a) => (
+                    <div key={a.id} className="flex flex-wrap gap-1.5">
+                      <dt className="font-semibold text-slate-700">{a.label}</dt>
+                      <dd className="text-slate-600">{a.value || "—"}</dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
             </article>
           ))}
         </div>

@@ -15,6 +15,15 @@ export type TourTierRow = {
   price: string;
 };
 
+/** One "additional info" booking question attached to a pricing option. */
+export type TourQuestionRow = {
+  id?: string;
+  label: string;
+  type: "READ_ONLY" | "TEXT";
+  remark: string;
+  required: boolean;
+};
+
 export type TourOptionRow = {
   id?: string;
   name: string;
@@ -27,6 +36,7 @@ export type TourOptionRow = {
   agentNet: string; // percent, e.g. "10" = 10% agent/member discount
   active: boolean;
   tiers: TourTierRow[];
+  questions: TourQuestionRow[];
 };
 
 export type DestinationLinkRow = { id: string; regions: string }; // regions: comma separated in the UI
@@ -98,9 +108,17 @@ const emptyOption = (): TourOptionRow => ({
   agentNet: "",
   active: true,
   tiers: [],
+  questions: [],
 });
 
 const emptyTier = (): TourTierRow => ({ label: "", minPax: "1", maxPax: "", price: "" });
+
+const emptyQuestion = (): TourQuestionRow => ({
+  label: "",
+  type: "TEXT",
+  remark: "",
+  required: false,
+});
 
 const lines = (value: string) =>
   value
@@ -374,6 +392,15 @@ export function SupplierTourForm({
                 minPax: Number(t.minPax) || 1,
                 maxPax: t.maxPax.trim() ? Number(t.maxPax) : null,
                 priceCents: parseMoneyInput(t.price),
+              })),
+            questions: o.questions
+              .filter((q) => q.label.trim())
+              .map((q) => ({
+                id: q.id,
+                label: q.label,
+                type: q.type,
+                remark: q.remark.trim() || undefined,
+                required: q.type === "TEXT" ? q.required : false,
               })),
           })),
         media: v.mediaUrls.map((u) => u.trim()).filter(Boolean).map((url) => ({ url })),
@@ -1160,6 +1187,130 @@ export function SupplierTourForm({
                               ✕
                             </Button>
                           </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="mt-4 border-t border-slate-100 pt-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                          Additional info (booking questions)
+                        </h4>
+                        <p className="mt-0.5 text-xs text-slate-400">
+                          Extra questions for customers who pick this option. Answers appear on the voucher.
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setOption(i, { questions: [...o.questions, emptyQuestion()] })}
+                      >
+                        + Add field
+                      </Button>
+                    </div>
+                    {o.questions.length === 0 && (
+                      <p className="mt-2 text-xs text-slate-400">
+                        No extra fields — customers only enter the standard details.
+                      </p>
+                    )}
+                    <div className="mt-2 space-y-3">
+                      {o.questions.map((q, qi) => (
+                        <div key={qi} className="rounded-xl border border-slate-200 p-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                              Field {qi + 1}
+                            </span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="text-red-600"
+                              aria-label={`Remove field ${qi + 1}`}
+                              onClick={() =>
+                                setOption(i, { questions: o.questions.filter((_, idx) => idx !== qi) })
+                              }
+                            >
+                              🗑
+                            </Button>
+                          </div>
+                          <div className="mt-1.5">
+                            <Input
+                              aria-label={`Field ${qi + 1} label`}
+                              value={q.label}
+                              onChange={(e) =>
+                                setOption(i, {
+                                  questions: o.questions.map((x, xi) =>
+                                    xi === qi ? { ...x, label: e.target.value } : x
+                                  ),
+                                })
+                              }
+                              placeholder="Departure (pick up) Detail"
+                            />
+                          </div>
+                          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                            <Field label="Answer type">
+                              <Select
+                                aria-label={`Field ${qi + 1} answer type`}
+                                value={q.type}
+                                onChange={(e) =>
+                                  setOption(i, {
+                                    questions: o.questions.map((x, xi) =>
+                                      xi === qi
+                                        ? { ...x, type: e.target.value as TourQuestionRow["type"] }
+                                        : x
+                                    ),
+                                  })
+                                }
+                              >
+                                <option value="READ_ONLY">Read only (notice — shown, not answered)</option>
+                                <option value="TEXT">Text (customer types an answer)</option>
+                              </Select>
+                            </Field>
+                            <Field
+                              label="Remark / help text"
+                              hint={
+                                q.type === "READ_ONLY"
+                                  ? "The notice text customers see for this field."
+                                  : "Placeholder / help text under the input."
+                              }
+                            >
+                              <Input
+                                aria-label={`Field ${qi + 1} remark`}
+                                value={q.remark}
+                                onChange={(e) =>
+                                  setOption(i, {
+                                    questions: o.questions.map((x, xi) =>
+                                      xi === qi ? { ...x, remark: e.target.value } : x
+                                    ),
+                                  })
+                                }
+                                placeholder={
+                                  q.type === "READ_ONLY"
+                                    ? "08:00 AM - 08:30 AM"
+                                    : "Please describe departure details (Hotel/Airport/Port)"
+                                }
+                              />
+                            </Field>
+                          </div>
+                          {q.type === "TEXT" && (
+                            <label className="mt-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
+                              <input
+                                type="checkbox"
+                                checked={q.required}
+                                onChange={(e) =>
+                                  setOption(i, {
+                                    questions: o.questions.map((x, xi) =>
+                                      xi === qi ? { ...x, required: e.target.checked } : x
+                                    ),
+                                  })
+                                }
+                              />
+                              Required field
+                            </label>
+                          )}
                         </div>
                       ))}
                     </div>

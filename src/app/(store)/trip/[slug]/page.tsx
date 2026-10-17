@@ -18,7 +18,7 @@ type TourWithRelations = Prisma.ProductGetPayload<{
   include: {
     supplier: true;
     media: true;
-    options: { include: { tiers: true } };
+    options: { include: { tiers: true; questions: true } };
     destination: true;
     category: true;
     reviews: { include: { customer: true } };
@@ -34,7 +34,10 @@ async function loadTour(slug: string) {
       options: {
         where: { active: true },
         orderBy: { sortOrder: "asc" },
-        include: { tiers: { orderBy: { sortOrder: "asc" } } },
+        include: {
+          tiers: { orderBy: { sortOrder: "asc" } },
+          questions: { orderBy: { sortOrder: "asc" } },
+        },
       },
       destination: { select: { name: true, slug: true } },
       category: { select: { name: true, slug: true } },
@@ -458,6 +461,13 @@ export default async function TourPage({ params }: { params: Promise<{ slug: str
               name: o.name,
               startTime: o.startTime,
               priceAdultCents: o.priceAdultCents,
+              questions: o.questions.map((q) => ({
+                id: q.id,
+                label: q.label,
+                type: q.type as "READ_ONLY" | "TEXT",
+                remark: q.remark,
+                required: q.required,
+              })),
             }))}
           />
         </div>

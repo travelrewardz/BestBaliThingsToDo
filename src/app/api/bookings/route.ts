@@ -16,6 +16,17 @@ const schema = z.object({
   customerPhone: z.string().max(30).nullish(),
   pickupLocation: z.string().max(120).nullish(),
   specialRequests: z.string().max(1000).nullish(),
+  answers: z
+    .array(
+      z.object({
+        questionId: z.string().min(1),
+        label: z.string().trim().min(1).max(120),
+        type: z.enum(["READ_ONLY", "TEXT"]),
+        value: z.string().trim().max(500).default(""),
+      })
+    )
+    .max(20)
+    .optional(),
   couponCode: z.string().max(40).nullish(),
 });
 

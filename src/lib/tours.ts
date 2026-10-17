@@ -127,6 +127,29 @@ export async function syncTourChildren(tx: Prisma.TransactionClient, productId: 
         await tx.optionTier.create({ data: { ...tierData, optionId } });
       }
     }
+
+    // Booking questions (additional info) asked of customers who pick this option.
+    const keptQuestionIds = option.questions.map((q) => q.id).filter((id): id is string => Boolean(id));
+    await tx.optionBookingQuestion.deleteMany({
+      where: { optionId, ...(keptQuestionIds.length ? { id: { notIn: keptQuestionIds } } : {}) },
+    });
+    for (const [qIndex, question] of option.questions.entries()) {
+      const questionData = {
+        label: question.label,
+        type: question.type,
+        remark: question.remark ?? null,
+        required: question.required,
+        sortOrder: qIndex,
+      };
+      if (question.id) {
+        await tx.optionBookingQuestion.updateMany({
+          where: { id: question.id, optionId },
+          data: questionData,
+        });
+      } else {
+        await tx.optionBookingQuestion.create({ data: { ...questionData, optionId } });
+      }
+    }
   }
 
   // --- media -----------------------------------------------------------

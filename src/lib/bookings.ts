@@ -239,12 +239,20 @@ export async function nextReference(
   return `BTD-${year}-${String(count + 1).padStart(6, "0")}`;
 }
 
+export type BookingAnswerInput = {
+  questionId: string;
+  label: string;
+  type: "READ_ONLY" | "TEXT";
+  value: string;
+};
+
 export type CreateBookingInput = QuoteInput & {
   customerName: string;
   customerEmail: string;
   customerPhone?: string | null;
   pickupLocation?: string | null;
   specialRequests?: string | null;
+  answers?: BookingAnswerInput[];
   userId: string;
 };
 
@@ -263,6 +271,36 @@ export async function createBooking(input: CreateBookingInput): Promise<Booking>
   const option = input.optionId
     ? product.options.find((o) => o.id === input.optionId && o.active) ?? null
     : null;
+
+  // Booking questions for the selected option: validate the customer's answers
+  // against the questions as they exist now (never trust client labels).
+  const questions = option
+    ? await prisma.optionBookingQuestion.findMany({
+        where: { optionId: option.id },
+        orderBy: { sortOrder: "asc" },
+      })
+    : [];
+  if (questions.length) {
+    const supplied = new Map((input.answers ?? []).map((a) => [a.questionId, a.value.trim()]));
+    const missing = questions.find((q) => q.type === "TEXT" && q.required && !supplied.get(q.id));
+    if (missing) {
+      throw new BookingError(400, "invalid", `Please answer "${missing.label}" — it is required`);
+    }
+  }
+  // Stored answers: read-only notices always; typed answers only when non-empty.
+  // Labels/remarks are copied from the current questions (snapshot).
+  const answersToStore = questions
+    .map((q, index) => ({
+      questionId: q.id,
+      label: q.label,
+      type: q.type,
+      value:
+        q.type === "READ_ONLY"
+          ? q.remark ?? ""
+          : (input.answers ?? []).find((a) => a.questionId === q.id)?.value.trim() ?? "",
+      sortOrder: index,
+    }))
+    .filter((a) => a.type === "READ_ONLY" || a.value);
 
   let booking: Booking;
   try {
@@ -335,6 +373,11 @@ export async function createBooking(input: CreateBookingInput): Promise<Booking>
             currency: quote.currency,
           },
         });
+        if (answersToStore.length) {
+          await tx.optionBookingAnswer.createMany({
+            data: answersToStore.map((a) => ({ bookingId: created.id, ...a })),
+          });
+        }
         return created;
       },
       { timeout: 20_000, maxWait: 5_000 }

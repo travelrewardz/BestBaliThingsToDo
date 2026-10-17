@@ -343,8 +343,43 @@ model ProductOption {
   active           Boolean       @default(true)
   bookingItems     BookingItem[]
   tiers            OptionTier[]
+  questions        OptionBookingQuestion[]
 
   @@index([productId, active])
+}
+
+// Extra question a supplier asks customers who pick this pricing option,
+// e.g. "Departure (pick up) Detail". Answers are collected at booking time
+// and snapshotted onto the booking so they appear on the voucher.
+model OptionBookingQuestion {
+  id       String        @id @default(cuid())
+  optionId String
+  option   ProductOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  label    String // e.g. "Departure (pick up) Time"
+  type     String        @default("TEXT") // READ_ONLY (notice, no input) | TEXT (customer types)
+  remark   String? // help text; for READ_ONLY this is the notice value shown to the customer
+  required Boolean       @default(false)
+  sortOrder Int          @default(0)
+
+  answers OptionBookingAnswer[]
+
+  @@index([optionId, sortOrder])
+}
+
+// One customer answer to an OptionBookingQuestion, snapshotted at booking
+// time (label/type copied so later edits to the question don't rewrite history).
+model OptionBookingAnswer {
+  id         String                  @id @default(cuid())
+  bookingId  String
+  booking    Booking                 @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  questionId String?
+  question   OptionBookingQuestion?  @relation(fields: [questionId], references: [id], onDelete: SetNull)
+  label      String
+  type       String                  @default("TEXT")
+  value      String                  @default("")
+  sortOrder  Int                     @default(0)
+
+  @@index([bookingId, sortOrder])
 }
 
 // Price tier of a pricing option, e.g. "2 travellers" / "Group of 4+".
@@ -492,6 +527,7 @@ model Booking {
   commission  Commission?
   review      Review?
   voucherCode String?
+  answers     OptionBookingAnswer[]
 
   @@index([supplierId, status])
   @@index([customerId, createdAt])

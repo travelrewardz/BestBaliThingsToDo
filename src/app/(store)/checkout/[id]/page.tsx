@@ -31,7 +31,7 @@ export default async function CheckoutPage({ params }: { params: Promise<{ id: s
 
   const booking = await prisma.booking.findUnique({
     where: { id },
-    include: { items: true },
+    include: { items: true, answers: { orderBy: { sortOrder: "asc" } } },
   });
   if (!booking) notFound();
   if (user.role === "CUSTOMER" && booking.customerId !== user.id) notFound();
@@ -107,6 +107,21 @@ export default async function CheckoutPage({ params }: { params: Promise<{ id: s
                 <div className="sm:col-span-2">
                   <dt className="text-xs font-bold uppercase tracking-wide text-slate-500">Special requests</dt>
                   <dd className="mt-0.5 text-slate-700">{booking.specialRequests}</dd>
+                </div>
+              )}
+              {booking.answers.length > 0 && (
+                <div className="sm:col-span-2 border-t border-slate-100 pt-3">
+                  <dt className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                    Additional info
+                  </dt>
+                  <dd className="mt-1 space-y-1">
+                    {booking.answers.map((a) => (
+                      <p key={a.id} className="text-sm text-slate-700">
+                        <span className="font-semibold">{a.label}</span>{" "}
+                        <span>{a.value || "—"}</span>
+                      </p>
+                    ))}
+                  </dd>
                 </div>
               )}
             </dl>

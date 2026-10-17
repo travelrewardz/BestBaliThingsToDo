@@ -13,7 +13,13 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     const source = await prisma.product.findFirst({
       where: { id, supplierId: user.supplierId },
       include: {
-        options: { orderBy: { sortOrder: "asc" }, include: { tiers: { orderBy: { sortOrder: "asc" } } } },
+        options: {
+          orderBy: { sortOrder: "asc" },
+          include: {
+            tiers: { orderBy: { sortOrder: "asc" } },
+            questions: { orderBy: { sortOrder: "asc" } },
+          },
+        },
         media: { orderBy: { sortOrder: "asc" } },
       },
     });
@@ -92,6 +98,15 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
                   maxPax: t.maxPax,
                   priceCents: t.priceCents,
                   sortOrder: ti,
+                })),
+              },
+              questions: {
+                create: o.questions.map((q, qi) => ({
+                  label: q.label,
+                  type: q.type,
+                  remark: q.remark,
+                  required: q.required,
+                  sortOrder: qi,
                 })),
               },
             })),

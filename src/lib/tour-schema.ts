@@ -33,6 +33,18 @@ export const optionTierSchema = z.object({
   priceCents: money.default(0),
 });
 
+/**
+ * Extra question asked of customers who pick this option (booking questions).
+ * `READ_ONLY` shows the remark as a notice; `TEXT` lets the customer type an answer.
+ */
+export const optionQuestionSchema = z.object({
+  id: z.string().optional(),
+  label: z.string().trim().min(1).max(120),
+  type: z.enum(["READ_ONLY", "TEXT"]).default("TEXT"),
+  remark: optionalText(300),
+  required: z.boolean().default(false),
+});
+
 export const tourOptionSchema = z.object({
   id: z.string().optional(),
   name: z.string().trim().min(1).max(80),
@@ -46,6 +58,7 @@ export const tourOptionSchema = z.object({
   agentNetBps: z.number().int().min(0).max(9000).nullable().optional(),
   active: z.boolean().default(true),
   tiers: z.array(optionTierSchema).max(20).default([]),
+  questions: z.array(optionQuestionSchema).max(10).default([]),
 });
 
 /** One destination with the regions (within that destination) the tour covers. */
@@ -142,6 +155,7 @@ export const tourSchema = z.object({
 export type TourInput = z.infer<typeof tourSchema>;
 export type TourOptionInput = z.infer<typeof tourOptionSchema>;
 export type OptionTierInput = z.infer<typeof optionTierSchema>;
+export type OptionQuestionInput = z.infer<typeof optionQuestionSchema>;
 export type DestinationLink = z.infer<typeof destinationLinkSchema>;
 export type ItineraryItem = z.infer<typeof itineraryItemSchema>;
 export type FaqItem = z.infer<typeof faqItemSchema>;
