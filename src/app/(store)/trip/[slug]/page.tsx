@@ -8,6 +8,8 @@ import { Badge, ButtonLink, SmartImage, Stars } from "@/components/ui";
 import { TourCard } from "@/components/TourCard";
 import { FavoriteButton } from "@/components/FavoriteButton";
 import { BookingWidget } from "@/components/BookingWidget";
+import { BookingFlowProvider } from "@/components/BookingFlow";
+import { AvailableOptions } from "@/components/AvailableOptions";
 import { formatMoney } from "@/lib/money";
 import { effectiveFromPriceCents } from "@/lib/tours";
 import { mdInline, mdToHtml, mdToText, parseStringArray } from "@/lib/md";
@@ -134,12 +136,12 @@ function Section({
   );
 }
 
-function TickList({ items, tone = "green" }: { items: string[]; tone?: "green" | "red" }) {
+function TickList({ items }: { items: string[] }) {
   return (
     <ul className="grid gap-2 sm:grid-cols-2">
       {items.map((item, i) => (
         <li key={i} className="flex items-start gap-2 text-sm text-slate-700">
-          <span aria-hidden>{tone === "green" ? "✅" : "❌"}</span>
+          <span aria-hidden>✅</span>
           <span dangerouslySetInnerHTML={{ __html: mdInline(item) }} />
         </li>
       ))}
@@ -237,6 +239,11 @@ export default async function TourPage({ params }: { params: Promise<{ slug: str
         )}
       </div>
 
+      <BookingFlowProvider
+        bookingCutoffHours={tour.bookingCutoffHours}
+        maxAdvanceDays={tour.maxAdvanceDays}
+        minParticipants={tour.minParticipants}
+      >
       <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         {/* Main content */}
         <div className="min-w-0 space-y-5">
@@ -292,6 +299,27 @@ export default async function TourPage({ params }: { params: Promise<{ slug: str
               <TickList items={highlights} />
             </Section>
           )}
+
+          <AvailableOptions
+            productId={tour.id}
+            currency={tour.currency}
+            options={tour.options.map((o) => ({
+              id: o.id,
+              name: o.name,
+              description: o.description,
+              startTime: o.startTime,
+              priceAdultCents: o.priceAdultCents,
+              priceChildCents: o.priceChildCents,
+              priceInfantCents: o.priceInfantCents,
+            }))}
+            basePrices={{
+              adult: tour.priceAdultCents,
+              child: tour.priceChildCents,
+              infant: tour.priceInfantCents,
+            }}
+            minPax={tour.minParticipants}
+            maxPax={tour.maxParticipants}
+          />
 
           {itinerary.length > 0 && (
             <Section title="Itinerary">
@@ -354,7 +382,7 @@ export default async function TourPage({ params }: { params: Promise<{ slug: str
 
           {whatToBring.length > 0 && (
             <Section title="What to bring">
-              <TickList items={whatToBring} tone="red" />
+              <TickList items={whatToBring} />
             </Section>
           )}
 
@@ -455,8 +483,6 @@ export default async function TourPage({ params }: { params: Promise<{ slug: str
             minParticipants={tour.minParticipants}
             maxParticipants={tour.maxParticipants}
             tourType={tour.tourType}
-            maxAdvanceDays={tour.maxAdvanceDays}
-            bookingCutoffHours={tour.bookingCutoffHours}
             options={tour.options.map((o) => ({
               id: o.id,
               name: o.name,
@@ -474,6 +500,7 @@ export default async function TourPage({ params }: { params: Promise<{ slug: str
           />
         </div>
       </div>
+      </BookingFlowProvider>
 
       {related.length > 0 && (
         <section className="mt-10">

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Alert, Button, Field, Input, Select, Textarea } from "@/components/ui";
 import { formatMoney } from "@/lib/money";
+import { useBookingFlow } from "@/components/BookingFlow";
 
 type OptionQuestion = {
   id: string;
@@ -35,6 +36,10 @@ type Quote = {
  * Sticky "book now" card on the tour page:
  * date + option + travellers → live price from /api/quote + seats from
  * /api/availability → sign-in (customers only) → booking created via /api/bookings.
+ *
+ * Date/party/option live in the shared BookingFlowProvider so the package
+ * cards under Highlights stay in sync. When the tour has pricing options the
+ * first action is "Check availability", which reveals those cards.
  */
 export function BookingWidget({
   productId,
@@ -45,8 +50,6 @@ export function BookingWidget({
   minParticipants,
   maxParticipants,
   tourType,
-  maxAdvanceDays,
-  bookingCutoffHours,
   options,
 }: {
   productId: string;
@@ -58,28 +61,25 @@ export function BookingWidget({
   minParticipants: number;
   maxParticipants: number;
   tourType: string;
-  maxAdvanceDays: number;
-  bookingCutoffHours: number;
   options: OptionRef[];
 }) {
   const router = useRouter();
-  const iso = (d: Date) => d.toISOString().slice(0, 10);
-  const minDate = useMemo(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + Math.ceil(bookingCutoffHours / 24));
-    return iso(d);
-  }, [bookingCutoffHours]);
-  const maxDate = useMemo(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + maxAdvanceDays);
-    return iso(d);
-  }, [maxAdvanceDays]);
-
-  const [optionId, setOptionId] = useState("");
-  const [date, setDate] = useState(() => (minDate < maxDate ? minDate : ""));
-  const [adults, setAdults] = useState(String(Math.max(1, minParticipants)));
-  const [children, setChildren] = useState("0");
-  const [infants, setInfants] = useState("0");
+  const {
+    optionId,
+    setOptionId,
+    checked,
+    setChecked,
+    date,
+    setDate,
+    minDate,
+    maxDate,
+    adults,
+    setAdults,
+    children,
+    setChildren,
+    infants,
+    setInfants,
+  } = useBookingFlow();
   const [coupon, setCoupon] = useState("");
 
   const [quote, setQuote] = useState<Quote | null>(null);
@@ -187,6 +187,14 @@ export function BookingWidget({
     Boolean(date) && !error && !loading && quote !== null && !overCapacity && !underMinimum && !soldOut;
 
   const display = (cents: number) => formatMoney(cents, quote?.currency || currency);
+
+  // Tours with pricing options reveal the "Choose your package" cards under
+  // Highlights on the first press; everything without options books directly.
+  const needsCheck = options.length > 0 && !checked;
+
+  function checkAvailability() {
+    setChecked(true);
+  }
 
   function startBooking() {
     if (!user) {
@@ -386,8 +394,13 @@ export function BookingWidget({
       )}
 
       {step === "choose" ? (
-        <Button className="mt-4 w-full" size="lg" onClick={startBooking} disabled={!canBook}>
-          {user ? "Book now" : "Sign in to book"}
+        <Button
+          className="mt-4 w-full"
+          size="lg"
+          onClick={needsCheck ? checkAvailability : startBooking}
+          disabled={!canBook}
+        >
+          {needsCheck ? "Check availability" : user ? "Book now" : "Sign in to book"}
         </Button>
       ) : (
         <div className="mt-4 space-y-3 border-t border-slate-100 pt-4">
