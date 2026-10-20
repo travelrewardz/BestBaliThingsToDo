@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Alert, Button, Field, Input, Select, Textarea } from "@/components/ui";
 import { formatMoney } from "@/lib/money";
+import { formatPackageDate, guestLabel } from "@/lib/package-options";
 import { useBookingFlow } from "@/components/BookingFlow";
 
 type OptionQuestion = {
@@ -33,6 +34,55 @@ type Quote = {
 };
 
 /**
+ * Compact −/＋ counter for child & infant counts under the main Guests
+ * stepper (age-based prices, so they need their own controls).
+ */
+function AgeStepper({
+  label,
+  hint,
+  value,
+  min,
+  onChange,
+}: {
+  label: string;
+  hint: string;
+  value: number;
+  min: number;
+  onChange: (v: number) => void;
+}) {
+  const btn =
+    "grid h-7 w-7 place-items-center rounded-md text-lg font-bold text-slate-600 hover:bg-slate-200 disabled:pointer-events-none disabled:opacity-40";
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+      <p className="text-xs font-semibold text-slate-600">
+        {label} <span className="font-normal text-slate-400">· {hint}</span>
+      </p>
+      <div className="mt-1 flex items-center justify-between">
+        <button
+          type="button"
+          aria-label={`Remove one ${label.toLowerCase()}`}
+          onClick={() => onChange(Math.max(min, value - 1))}
+          disabled={value <= min}
+          className={btn}
+        >
+          −
+        </button>
+        <span className="text-sm font-bold text-slate-900">{value}</span>
+        <button
+          type="button"
+          aria-label={`Add one ${label.toLowerCase()}`}
+          onClick={() => onChange(Math.min(50, value + 1))}
+          disabled={value >= 50}
+          className={btn}
+        >
+          +
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
  * Sticky "book now" card on the tour page:
  * date + option + travellers → live price from /api/quote + seats from
  * /api/availability → sign-in (customers only) → booking created via /api/bookings.
@@ -47,6 +97,7 @@ export function BookingWidget({
   name,
   currency,
   basePriceCents,
+  priceAdultCents,
   minParticipants,
   maxParticipants,
   tourType,
@@ -66,7 +117,6 @@ export function BookingWidget({
   const router = useRouter();
   const {
     optionId,
-    setOptionId,
     checked,
     setChecked,
     date,
@@ -267,35 +317,31 @@ export function BookingWidget({
   return (
     <aside className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex items-baseline justify-between gap-2">
-        <div>
-          <p className="text-[11px] uppercase tracking-wide text-slate-400">From</p>
+        <div className="min-w-0">
+          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-brand-700">
+            From
+          </p>
           <p className="font-display text-2xl font-extrabold text-brand-800">
             {display(basePriceCents)}
-            <span className="text-xs font-medium text-slate-500"> / adult</span>
+            {priceAdultCents > basePriceCents && (
+              <span className="ml-2 text-sm font-semibold text-slate-400 line-through">
+                {display(priceAdultCents)}
+              </span>
+            )}
           </p>
+          <p className="mt-0.5 text-xs text-slate-500">per pax · lowest tier</p>
         </div>
-        {loading && <span className="text-xs text-slate-400">Updating…</span>}
+        {loading && <span className="shrink-0 text-xs text-slate-400">Updating…</span>}
       </div>
 
-      <div className="mt-4 space-y-3">
-        {options.length > 0 && (
-          <Field label="Option" htmlFor="bw-option">
-            <Select id="bw-option" value={optionId} onChange={(e) => setOptionId(e.target.value)}>
-              <option value="">Standard / no option</option>
-              {options.map((o) => (
-                <option key={o.id} value={o.id}>
-                  {o.startTime ? `${o.startTime} · ` : ""}
-                  {o.name}
-                  {o.priceAdultCents != null && o.priceAdultCents !== basePriceCents
-                    ? ` — ${formatMoney(o.priceAdultCents, currency)}`
-                    : ""}
-                </option>
-              ))}
-            </Select>
-          </Field>
-        )}
-
-        <Field label="Date" htmlFor="bw-date" required>
+      <div className="mt-4 space-y-4 border-t border-slate-100 pt-4">
+        <div>
+          <label
+            htmlFor="bw-date"
+            className="mb-1.5 block text-sm font-semibold uppercase tracking-wide text-slate-700"
+          >
+            Travel date<span className="text-red-500"> *</span>
+          </label>
           <Input
             id="bw-date"
             type="date"
@@ -305,39 +351,59 @@ export function BookingWidget({
             onChange={(e) => setDate(e.target.value)}
             required
           />
-        </Field>
+          {date && (
+            <p className="mt-1 text-xs font-semibold text-brand-700">
+              {formatPackageDate(date)}
+            </p>
+          )}
+        </div>
 
-        <div className="grid grid-cols-3 gap-2">
-          <Field label="Adults" htmlFor="bw-adults" hint={`≥ ${minParticipants}`}>
-            <Input
-              id="bw-adults"
-              type="number"
-              min={1}
-              max={50}
-              value={adults}
-              onChange={(e) => setAdults(e.target.value)}
-            />
-          </Field>
-          <Field label="Children" htmlFor="bw-children" hint="3–12 yrs">
-            <Input
-              id="bw-children"
-              type="number"
+        <div>
+          <span className="mb-1.5 block text-sm font-semibold uppercase tracking-wide text-slate-700">
+            Guests
+          </span>
+          <div className="flex items-center justify-between rounded-xl border border-slate-300 px-2 py-1.5">
+            <button
+              type="button"
+              aria-label="Remove one adult"
+              onClick={() => setAdults(String(Math.max(1, adultsN() - 1)))}
+              disabled={adultsN() <= 1}
+              className="grid h-9 w-9 place-items-center rounded-lg text-xl font-bold text-slate-600 hover:bg-slate-100 disabled:pointer-events-none disabled:opacity-40"
+            >
+              −
+            </button>
+            <span className="text-sm font-bold text-slate-900">{guestLabel(total)}</span>
+            <button
+              type="button"
+              aria-label="Add one adult"
+              onClick={() => setAdults(String(Math.min(50, adultsN() + 1)))}
+              disabled={adultsN() >= 50}
+              className="grid h-9 w-9 place-items-center rounded-lg text-xl font-bold text-slate-600 hover:bg-slate-100 disabled:pointer-events-none disabled:opacity-40"
+            >
+              +
+            </button>
+          </div>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <AgeStepper
+              label="Children"
+              hint="3–12 yrs"
+              value={childrenN()}
               min={0}
-              max={50}
-              value={children}
-              onChange={(e) => setChildren(e.target.value)}
+              onChange={(v) => setChildren(String(v))}
             />
-          </Field>
-          <Field label="Infants" htmlFor="bw-infants" hint="< 3 yrs">
-            <Input
-              id="bw-infants"
-              type="number"
+            <AgeStepper
+              label="Infants"
+              hint="< 3 yrs"
+              value={infantsN()}
               min={0}
-              max={50}
-              value={infants}
-              onChange={(e) => setInfants(e.target.value)}
+              onChange={(v) => setInfants(String(v))}
             />
-          </Field>
+          </div>
+          {minParticipants > 1 && (
+            <p className="mt-1.5 text-xs text-slate-500">
+              Minimum {minParticipants} traveller{minParticipants === 1 ? "" : "s"}
+            </p>
+          )}
         </div>
 
         <Field label="Coupon code" htmlFor="bw-coupon" hint="Optional">
@@ -394,14 +460,19 @@ export function BookingWidget({
       )}
 
       {step === "choose" ? (
-        <Button
-          className="mt-4 w-full"
-          size="lg"
-          onClick={needsCheck ? checkAvailability : startBooking}
-          disabled={!canBook}
-        >
-          {needsCheck ? "Check availability" : user ? "Book now" : "Sign in to book"}
-        </Button>
+        <>
+          <Button
+            className="mt-4 w-full uppercase tracking-wide"
+            size="lg"
+            onClick={needsCheck ? checkAvailability : startBooking}
+            disabled={!canBook}
+          >
+            {needsCheck ? "Check availability" : user ? "Book now" : "Sign in to book"}
+          </Button>
+          <p className="mt-2.5 text-center text-xs text-slate-400">
+            Payment after confirmation
+          </p>
+        </>
       ) : (
         <div className="mt-4 space-y-3 border-t border-slate-100 pt-4">
           <h3 className="font-display font-bold text-slate-900">Traveller details</h3>
