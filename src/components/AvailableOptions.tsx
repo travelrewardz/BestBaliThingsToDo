@@ -21,6 +21,7 @@ export type PackageOption = {
   priceAdultCents: number | null;
   priceChildCents: number | null;
   priceInfantCents: number | null;
+  tiers?: { minPax: number; maxPax: number | null; priceCents: number }[] | null;
 };
 
 export type PackageCounts = {

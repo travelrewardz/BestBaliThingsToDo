@@ -1,6 +1,7 @@
 import type { Coupon, Product, Promotion, Supplier } from "@prisma/client";
 import { applyBps } from "@/lib/money";
 import { weekdayOf, tourDateKey } from "@/lib/availability";
+import { selectTierForPax } from "@/lib/package-options";
 import { prisma } from "@/lib/prisma";
 
 // ------------------------------------------------------------
@@ -10,8 +11,10 @@ import { prisma } from "@/lib/prisma";
 export type PriceBreak = { adult: number; child: number; infant: number };
 
 /**
- * Product price for a date, including weekend & seasonal surcharges.
- * Price rules are loaded lazily from the DB when not supplied.
+ * Per-person price for a date, including weekend & seasonal surcharges.
+ * When an option is given, its price tier matching `pax` wins, then its flat
+ * price overrides, then the product base prices. Price rules are loaded
+ * lazily from the DB when not supplied.
  */
 export async function priceForDate(
   product: Product,
@@ -20,7 +23,9 @@ export async function priceForDate(
     priceAdultCents: number | null;
     priceChildCents: number | null;
     priceInfantCents: number | null;
+    tiers?: { minPax: number; maxPax: number | null; priceCents: number }[] | null;
   } | null,
+  pax?: number | null,
   rules?: Array<{
     type: string;
     dateFrom: Date | null;
@@ -54,11 +59,21 @@ export async function priceForDate(
     bps += rule.surchargeBps;
   }
 
-  const base: PriceBreak = {
-    adult: option?.priceAdultCents ?? product.priceAdultCents,
-    child: option?.priceChildCents ?? product.priceChildCents,
-    infant: option?.priceInfantCents ?? product.priceInfantCents,
-  };
+  // A tier matching the party size is the option's per-person price (children
+  // and infants keep their explicit overrides when set); otherwise the option's
+  // flat prices fall back to the product base prices.
+  const tier = pax ? selectTierForPax(option?.tiers, pax) : null;
+  const base: PriceBreak = tier
+    ? {
+        adult: tier.priceCents,
+        child: option?.priceChildCents ?? tier.priceCents,
+        infant: option?.priceInfantCents ?? tier.priceCents,
+      }
+    : {
+        adult: option?.priceAdultCents ?? product.priceAdultCents,
+        child: option?.priceChildCents ?? product.priceChildCents,
+        infant: option?.priceInfantCents ?? product.priceInfantCents,
+      };
   if (bps <= 0) return base;
   const bump = (c: number) => c + applyBps(c, bps);
   return { adult: bump(base.adult), child: bump(base.child), infant: bump(base.infant) };

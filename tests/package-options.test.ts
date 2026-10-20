@@ -8,6 +8,7 @@ import {
   guestLabel,
   ordinalDay,
   perPersonPrice,
+  selectTierForPax,
   visibleOptions,
 } from "@/lib/package-options";
 import { PackageCards, type PackageOption } from "@/components/AvailableOptions";
@@ -58,6 +59,42 @@ describe("package option date & label helpers", () => {
   });
 });
 
+describe("selectTierForPax", () => {
+  const tiers = [
+    { minPax: 1, maxPax: 2, priceCents: 900000 },
+    { minPax: 3, maxPax: 5, priceCents: 800000 },
+    { minPax: 6, maxPax: null, priceCents: 700000 },
+  ];
+
+  it("picks the tier covering the party size", () => {
+    expect(selectTierForPax(tiers, 1)?.priceCents).toBe(900000);
+    expect(selectTierForPax(tiers, 2)?.priceCents).toBe(900000);
+    expect(selectTierForPax(tiers, 4)?.priceCents).toBe(800000);
+    expect(selectTierForPax(tiers, 10)?.priceCents).toBe(700000); // open-ended max
+  });
+
+  it("prefers the most specific (highest minPax) match", () => {
+    const overlapping = [
+      { minPax: 1, maxPax: null, priceCents: 500000 },
+      { minPax: 3, maxPax: 4, priceCents: 450000 },
+    ];
+    expect(selectTierForPax(overlapping, 3)?.priceCents).toBe(450000);
+    expect(selectTierForPax(overlapping, 9)?.priceCents).toBe(500000);
+  });
+
+  it("returns null when no tier covers the party or the tier has no price", () => {
+    expect(selectTierForPax(tiers, 0)).not.toBeNull(); // clamps to 1
+    const bounded = [{ minPax: 2, maxPax: 4, priceCents: 100 }];
+    expect(selectTierForPax(bounded, 1)).toBeNull();
+    expect(selectTierForPax([], 2)).toBeNull();
+    expect(selectTierForPax(null, 2)).toBeNull();
+    // unfinished tier rows (price 0) never make a booking free
+    expect(
+      selectTierForPax([{ minPax: 1, maxPax: null, priceCents: 0 }], 2)
+    ).toBeNull();
+  });
+});
+
 describe("package card pricing", () => {
   it("falls back from option prices to the tour base price", () => {
     expect(fallbackTotal(opt(), base, counts)).toBe(850000);
@@ -65,6 +102,28 @@ describe("package card pricing", () => {
     expect(
       fallbackTotal(opt(), base, { adults: 2, children: 1, infants: 1 })
     ).toBe(2 * 850000 + 500000 + 0);
+  });
+
+  it("prices from the option's tier matching the party size", () => {
+    const withTiers = opt({
+      priceAdultCents: 950000,
+      tiers: [
+        { minPax: 1, maxPax: 2, priceCents: 800000 },
+        { minPax: 3, maxPax: null, priceCents: 700000 },
+      ],
+    });
+    expect(fallbackTotal(withTiers, base, counts)).toBe(800000);
+    expect(
+      fallbackTotal(withTiers, base, { adults: 4, children: 0, infants: 0 })
+    ).toBe(4 * 700000);
+    // children/infants keep their explicit overrides when set on the option
+    const childOverride = opt({
+      priceChildCents: 500000,
+      tiers: [{ minPax: 1, maxPax: null, priceCents: 800000 }],
+    });
+    expect(
+      fallbackTotal(childOverride, base, { adults: 2, children: 1, infants: 0 })
+    ).toBe(2 * 800000 + 500000);
   });
 
   it("divides totals into a per-person price", () => {

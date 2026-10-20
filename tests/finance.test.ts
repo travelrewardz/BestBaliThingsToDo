@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { Coupon, Promotion } from "@prisma/client";
+import type { Coupon, Product, Promotion } from "@prisma/client";
 import {
   commissionFor,
   couponDiscount,
+  priceForDate,
   promotionDiscount,
   validateCoupon,
 } from "@/lib/finance";
@@ -198,6 +199,76 @@ describe("promotionDiscount", () => {
       promotionDiscount([promotion({ dateTo: new Date("2026-05-01T00:00:00Z") })], pCtx)
         .discountCents
     ).toBe(0);
+  });
+});
+
+// ------------------------------------------------------------ priceForDate
+
+const product = ({
+  id: "p1",
+  priceAdultCents: 1_200_000,
+  priceChildCents: 600_000,
+  priceInfantCents: 0,
+  weekendRateBps: 0,
+} as unknown) as Product;
+
+const saturday = new Date("2026-10-24T12:00:00Z"); // weekend
+const wednesday = new Date("2026-10-21T12:00:00Z");
+
+describe("priceForDate", () => {
+  const option = {
+    priceAdultCents: null,
+    priceChildCents: null,
+    priceInfantCents: null,
+    tiers: [
+      { minPax: 1, maxPax: 2, priceCents: 800_000 },
+      { minPax: 3, maxPax: null, priceCents: 700_000 },
+    ],
+  };
+
+  it("prices from the option tier matching the party size", async () => {
+    expect(await priceForDate(product, wednesday, option, 1, [])).toEqual({
+      adult: 800_000,
+      child: 800_000,
+      infant: 800_000,
+    });
+    expect(await priceForDate(product, wednesday, option, 5, [])).toEqual({
+      adult: 700_000,
+      child: 700_000,
+      infant: 700_000,
+    });
+  });
+
+  it("keeps explicit child/infant overrides over the tier price", async () => {
+    const withOverrides = { ...option, priceChildCents: 400_000, priceInfantCents: 0 };
+    expect(await priceForDate(product, wednesday, withOverrides, 2, [])).toEqual({
+      adult: 800_000,
+      child: 400_000,
+      infant: 0,
+    });
+  });
+
+  it("falls back to flat option prices (then base) when no tier matches", async () => {
+    const bounded = {
+      priceAdultCents: 900_000,
+      priceChildCents: null,
+      priceInfantCents: null,
+      tiers: [{ minPax: 2, maxPax: 4, priceCents: 750_000 }],
+    };
+    // pax 7 doesn't fit the tier → the flat option price applies
+    expect((await priceForDate(product, wednesday, bounded, 7, [])).adult).toBe(900_000);
+    // no option at all → product base prices
+    expect(await priceForDate(product, wednesday, null, 1, [])).toEqual({
+      adult: 1_200_000,
+      child: 600_000,
+      infant: 0,
+    });
+  });
+
+  it("still applies weekend surcharges on top of the tier price", async () => {
+    const weekendProduct = { ...product, weekendRateBps: 1_000 } as Product; // +10%
+    const price = await priceForDate(weekendProduct, saturday, option, 1, []);
+    expect(price.adult).toBe(880_000); // 800_000 + 10%
   });
 });
 

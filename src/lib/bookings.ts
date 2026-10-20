@@ -1,4 +1,11 @@
-import type { Booking, Prisma, Product, ProductOption, Supplier } from "@prisma/client";
+import type {
+  Booking,
+  OptionTier,
+  Prisma,
+  Product,
+  ProductOption,
+  Supplier,
+} from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   AvailabilityError,
@@ -59,15 +66,23 @@ export type QuoteResult = {
   totalTravelers: number;
 };
 
+type ProductOptionWithTiers = ProductOption & { tiers: OptionTier[] };
+
 type ProductFull = Product & {
   supplier: Supplier;
-  options: ProductOption[];
+  options: ProductOptionWithTiers[];
 };
 
 async function loadBookableProduct(productId: string): Promise<ProductFull> {
   const product = await prisma.product.findUnique({
     where: { id: productId },
-    include: { supplier: true, options: true },
+    include: {
+      supplier: true,
+      options: {
+        include: { tiers: { orderBy: { sortOrder: "asc" } } },
+        orderBy: { sortOrder: "asc" },
+      },
+    },
   });
   if (!product) throw new BookingError(404, "not_found", "Tour not found");
   if (product.status !== "PUBLISHED") {
@@ -132,7 +147,7 @@ export async function quoteBooking(input: QuoteInput): Promise<QuoteResult> {
     throw new BookingError(400, "invalid", "Selected option is not available");
   }
 
-  const price = await priceForDate(product, date, option);
+  const price = await priceForDate(product, date, option, counts.total);
   const subtotalCents =
     counts.adults * price.adult +
     counts.children * price.child +

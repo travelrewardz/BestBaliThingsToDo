@@ -47,19 +47,51 @@ export type OptionPricing = {
   priceAdultCents: number | null;
   priceChildCents: number | null;
   priceInfantCents: number | null;
+  tiers?: { minPax: number; maxPax: number | null; priceCents: number }[] | null;
 };
+
+/**
+ * The tier that applies to a party of `pax` people: the matching tier with the
+ * highest minPax (most specific fit), or null when no tier covers the party
+ * size. Tiers without a usable price (<= 0) are ignored so an unfinished tier
+ * row can never make a booking free.
+ */
+export function selectTierForPax<T extends { minPax: number; maxPax: number | null; priceCents: number }>(
+  tiers: T[] | null | undefined,
+  pax: number
+): T | null {
+  if (!tiers?.length) return null;
+  const n = Math.max(1, Math.floor(pax || 1));
+  let best: T | null = null;
+  for (const tier of tiers) {
+    if (!(tier.priceCents > 0)) continue;
+    if (n < tier.minPax) continue;
+    if (tier.maxPax != null && n > tier.maxPax) continue;
+    if (!best || tier.minPax > best.minPax) best = tier;
+  }
+  return best;
+}
 
 export type TravelerCounts = { adults: number; children: number; infants: number };
 
 /**
  * List-price total for a package while the live quote is loading (or after it
- * fails): the option's own prices fall back to the tour's base prices.
+ * fails): the option's matching price tier wins, then the option's own prices,
+ * then the tour's base prices.
  */
 export function fallbackTotal(
   option: OptionPricing,
   base: { adult: number; child: number; infant: number },
   counts: TravelerCounts
 ): number {
+  const tier = selectTierForPax(option.tiers, counts.adults + counts.children + counts.infants);
+  if (tier) {
+    return (
+      counts.adults * tier.priceCents +
+      counts.children * (option.priceChildCents ?? tier.priceCents) +
+      counts.infants * (option.priceInfantCents ?? tier.priceCents)
+    );
+  }
   return (
     counts.adults * (option.priceAdultCents ?? base.adult) +
     counts.children * (option.priceChildCents ?? base.child) +
