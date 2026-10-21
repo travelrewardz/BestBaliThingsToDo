@@ -1,4 +1,5 @@
-import { handle, jsonOk, ApiError, parseJson, requireApiUser, getIp } from "@/lib/api";
+import { handle, jsonOk, ApiError, parseJson, requireApiUser, rateLimit, getIp } from "@/lib/api";
+import { canAny, resolveUserFromToken, tokenFromRequest } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createBooking, BookingError } from "@/lib/bookings";
 import { AvailabilityError } from "@/lib/availability";
@@ -32,26 +33,35 @@ const schema = z.object({
 
 /**
  * POST /api/bookings — creates a booking with atomic seat reservation.
- * Requires a customer session; seats are held in a transaction so two
- * buyers can never take the last seat.
+ * Signed-in customers book on their own account; guests (no session) can
+ * book as a guest using the contact details in the payload — no account or
+ * promotion applies for them. Seats are held in a transaction so two buyers
+ * can never take the last seat.
  */
 export async function POST(req: Request) {
   return handle(req, async (req) => {
-    const user = await requireApiUser(req, {
-      roles: ["CUSTOMER"],
-      permissions: ["customer.booking.create"],
-    });
+    rateLimit(`booking:${getIp(req)}`, 10, 60_000);
+    const user = await resolveUserFromToken(tokenFromRequest(req));
+    if (user) {
+      if (user.role !== "CUSTOMER") {
+        throw new ApiError(403, "Only customer accounts can book tours", "forbidden");
+      }
+      if (!(await canAny(user, ["customer.booking.create"]))) {
+        throw new ApiError(403, "Missing permission", "forbidden");
+      }
+    }
     const body = await parseJson(req, schema);
 
-    // The booking always belongs to the logged-in user (data isolation).
-    if (body.customerEmail.trim().toLowerCase() !== user.email.toLowerCase()) {
+    // A signed-in booking always belongs to that account (data isolation);
+    // a guest supplies their own contact email.
+    if (user && body.customerEmail.trim().toLowerCase() !== user.email.toLowerCase()) {
       throw new ApiError(400, "Use the email of the signed-in account", "email_mismatch");
     }
 
     try {
       const booking = await createBooking({
         ...body,
-        userId: user.id,
+        userId: user?.id ?? null,
       });
       return jsonOk(
         {

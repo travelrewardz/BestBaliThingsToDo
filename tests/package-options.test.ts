@@ -2,10 +2,16 @@ import { describe, expect, it } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
+  CHILD_AGE_HINT,
   INITIAL_VISIBLE_OPTIONS,
+  INFANT_AGE_HINT,
   fallbackTotal,
   formatPackageDate,
+  fromPrice,
   guestLabel,
+  optionAvailability,
+  optionMaxPax,
+  optionMinPax,
   ordinalDay,
   perPersonPrice,
   selectTierForPax,
@@ -126,6 +132,27 @@ describe("package card pricing", () => {
     ).toBe(2 * 800000 + 500000);
   });
 
+  it("quotes the lowest tier as the from price", () => {
+    expect(fromPrice(opt(), 850000)).toBe(850000);
+    expect(fromPrice(opt({ priceAdultCents: 950000 }), 850000)).toBe(950000);
+    expect(
+      fromPrice(
+        opt({
+          priceAdultCents: 950000,
+          tiers: [
+            { minPax: 1, maxPax: 2, priceCents: 900000 },
+            { minPax: 3, maxPax: null, priceCents: 700000 },
+          ],
+        }),
+        850000
+      )
+    ).toBe(700000);
+    // unfinished tier rows (price 0) never advertise a free booking
+    expect(fromPrice(opt({ tiers: [{ minPax: 1, maxPax: null, priceCents: 0 }] }), 850000)).toBe(
+      850000
+    );
+  });
+
   it("divides totals into a per-person price", () => {
     expect(perPersonPrice(850000, 1)).toBe(850000);
     expect(perPersonPrice(1700000, 2)).toBe(850000);
@@ -175,7 +202,9 @@ describe("PackageCards rendering", () => {
   it("prefers live quote totals over the fallback", () => {
     const html = render({ totals: { "opt-1": 975000 } });
     expect(html).toContain(formatMoney(975000, "IDR"));
-    expect(html).not.toContain(formatMoney(850000, "IDR"));
+    expect(html).toContain("Total for 1");
+    // the card still advertises its cheapest tier as "from"
+    expect(html).toContain(formatMoney(850000, "IDR"));
   });
 
   it("collapses to two cards with a show-all button", () => {
@@ -191,5 +220,94 @@ describe("PackageCards rendering", () => {
     const html = render({ optionId: "opt-1" });
     expect(html).toContain("Selected");
     expect(html).not.toContain(">Select<");
+  });
+
+  it("keeps packages the party can't take visible but unselectable", () => {
+    const twoPlus = opt({
+      id: "opt-2",
+      name: "Couples package",
+      tiers: [{ minPax: 2, maxPax: 4, priceCents: 700000 }],
+    });
+    const html = render({ options: [opt(), twoPlus] });
+    // still on the page, with its cheapest price shown…
+    expect(html).toContain("Couples package");
+    expect(html).toContain(formatMoney(700000, "IDR"));
+    expect(html).toContain("Available for 2+ travellers — add 1 more");
+    // …but not clickable
+    expect(html).toContain("Not available");
+    expect(html).toContain('aria-disabled="true"');
+    expect(html).toContain('disabled=""');
+  });
+
+  it("shows a failing quote as unavailable instead of hiding the card", () => {
+    const html = render({ quoteErrors: { "opt-1": "Fully booked for this date" } });
+    expect(html).toContain("Fully booked for this date");
+    expect(html).toContain("Not available");
+    expect(html).toContain('aria-disabled="true"');
+  });
+});
+
+describe("option party rules (minimum adults / tier party sizes)", () => {
+  const party = (adults: number, children = 0, infants = 0) => ({
+    adults,
+    children,
+    infants,
+    total: adults + children + infants,
+  });
+
+  it("reads the party range from the option's tiers", () => {
+    const tiered = opt({ tiers: [{ minPax: 2, maxPax: 4, priceCents: 700000 }] });
+    expect(optionMinPax(tiered, 1)).toBe(2);
+    expect(optionMaxPax(tiered, 15)).toBe(4);
+    // an open-ended tier is only bounded by the tour's own maximum
+    const open = opt({ tiers: [{ minPax: 6, maxPax: null, priceCents: 650000 }] });
+    expect(optionMinPax(open, 1)).toBe(6);
+    expect(optionMaxPax(open, 15)).toBe(15);
+    // no tiers → the tour's own limits
+    expect(optionMinPax(opt(), 3)).toBe(3);
+    expect(optionMaxPax(opt(), 8)).toBe(8);
+  });
+
+  it("blocks options that need a bigger party without hiding them", () => {
+    const twoPlus = opt({ tiers: [{ minPax: 2, maxPax: 4, priceCents: 700000 }] });
+    expect(optionAvailability(twoPlus, party(1), { minAdults: 1, maxPax: 15 })).toMatchObject({
+      bookable: false,
+      reason: "Available for 2+ travellers — add 1 more",
+    });
+    expect(optionAvailability(twoPlus, party(2), { minAdults: 1, maxPax: 15 })).toMatchObject({
+      bookable: true,
+      reason: null,
+    });
+    // children and infants count towards the party size, not the adult minimum
+    expect(optionAvailability(twoPlus, party(1, 1), { minAdults: 1, maxPax: 15 }).bookable).toBe(
+      true
+    );
+  });
+
+  it("enforces the tour minimum on adults, with children added on top", () => {
+    const anyOption = opt();
+    expect(optionAvailability(anyOption, party(1, 2), { minAdults: 2, maxPax: 15 })).toMatchObject({
+      bookable: false,
+      reason: "Needs at least 2 adults",
+    });
+    expect(optionAvailability(anyOption, party(2), { minAdults: 2, maxPax: 15 }).bookable).toBe(
+      true
+    );
+  });
+
+  it("blocks parties above the group maximum", () => {
+    const capped = opt({ tiers: [{ minPax: 1, maxPax: 4, priceCents: 700000 }] });
+    expect(optionAvailability(capped, party(5), { minAdults: 1, maxPax: 15 })).toMatchObject({
+      bookable: false,
+      reason: "Up to 4 travellers",
+    });
+    const open = opt({ tiers: [{ minPax: 1, maxPax: null, priceCents: 700000 }] });
+    expect(optionAvailability(open, party(12), { minAdults: 1, maxPax: 15 }).bookable).toBe(true);
+    expect(optionAvailability(open, party(16), { minAdults: 1, maxPax: 15 }).bookable).toBe(false);
+  });
+
+  it("uses the updated age bands for children and infants", () => {
+    expect(CHILD_AGE_HINT).toBe("2–6 yrs");
+    expect(INFANT_AGE_HINT).toBe("under 3 yrs");
   });
 });

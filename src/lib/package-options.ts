@@ -43,6 +43,10 @@ export function guestLabel(totalTravelers: number): string {
   return `${n} guest${n === 1 ? "" : "s"}`;
 }
 
+/** Age bands shown under the guest steppers. */
+export const CHILD_AGE_HINT = "2–6 yrs";
+export const INFANT_AGE_HINT = "under 3 yrs";
+
 export type OptionPricing = {
   priceAdultCents: number | null;
   priceChildCents: number | null;
@@ -103,6 +107,91 @@ export function fallbackTotal(
 export function perPersonPrice(totalCents: number, totalTravelers: number): number {
   const travelers = Math.max(1, Math.floor(totalTravelers || 1));
   return Math.round(totalCents / travelers);
+}
+
+/**
+ * Lowest per-person price an option can ever be booked at — the figure the
+ * cards advertise as "from" (its cheapest usable tier, else its own adult
+ * price, else the tour's base price).
+ */
+export function fromPrice(option: OptionPricing, baseAdultCents: number): number {
+  const tierPrices = (option.tiers ?? [])
+    .filter((t) => t.priceCents > 0)
+    .map((t) => t.priceCents);
+  if (tierPrices.length) return Math.min(...tierPrices);
+  return option.priceAdultCents ?? baseAdultCents;
+}
+
+/** Smallest party an option accepts: its lowest tier's minPax, else the tour minimum. */
+export function optionMinPax(option: OptionPricing, fallbackMinPax = 1): number {
+  const tierMins = (option.tiers ?? [])
+    .filter((t) => t.priceCents > 0 && t.minPax > 0)
+    .map((t) => t.minPax);
+  const tierMin = tierMins.length ? Math.min(...tierMins) : 0;
+  return Math.max(1, Math.floor(fallbackMinPax || 1), tierMin);
+}
+
+/** Largest party an option accepts: its highest tier cap, else the tour maximum. */
+export function optionMaxPax(option: OptionPricing, fallbackMaxPax: number): number {
+  const tiers = (option.tiers ?? []).filter((t) => t.priceCents > 0);
+  // An open-ended tier (no maxPax) is bounded only by the tour's own limit.
+  if (tiers.some((t) => t.maxPax == null)) return fallbackMaxPax;
+  const caps = tiers
+    .map((t) => t.maxPax)
+    .filter((n): n is number => typeof n === "number" && n > 0);
+  if (!caps.length) return fallbackMaxPax;
+  return Math.max(...caps);
+}
+
+export type PartySize = { adults: number; children: number; infants: number; total: number };
+
+export type OptionAvailability = {
+  bookable: boolean;
+  /** Why the current party can't take this option (null when it can). */
+  reason: string | null;
+  minPax: number;
+  maxPax: number;
+};
+
+/**
+ * Whether the current party may book an option. Options the party can't take
+ * stay on the page — dimmed and unselectable, still showing their "from"
+ * price — so customers can see the cheaper packages that open up for larger
+ * groups. The minimum is enforced on ADULTS (children and infants are added
+ * on top of the tour's minimum), while tier caps and the group maximum apply
+ * to the whole party.
+ */
+export function optionAvailability(
+  option: OptionPricing,
+  party: PartySize,
+  limits: { minAdults: number; maxPax: number }
+): OptionAvailability {
+  const minPax = optionMinPax(option, limits.minAdults);
+  const maxPax = optionMaxPax(option, limits.maxPax);
+  const adults = Math.max(1, Math.floor(party.adults || 1));
+  const total = Math.max(1, Math.floor(party.total || adults));
+
+  if (adults < limits.minAdults) {
+    return {
+      bookable: false,
+      reason: `Needs at least ${limits.minAdults} adults`,
+      minPax,
+      maxPax,
+    };
+  }
+  if (total < minPax) {
+    const short = minPax - total;
+    return {
+      bookable: false,
+      reason: `Available for ${minPax}+ travellers — add ${short} more`,
+      minPax,
+      maxPax,
+    };
+  }
+  if (maxPax > 0 && total > maxPax) {
+    return { bookable: false, reason: `Up to ${maxPax} travellers`, minPax, maxPax };
+  }
+  return { bookable: true, reason: null, minPax, maxPax };
 }
 
 /** Cards shown before "Show all … options" is pressed. */

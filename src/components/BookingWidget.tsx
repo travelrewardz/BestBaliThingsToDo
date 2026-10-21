@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Alert, Button, Field, Input, Select, Textarea } from "@/components/ui";
 import { formatMoney } from "@/lib/money";
-import { formatPackageDate, guestLabel } from "@/lib/package-options";
+import { CHILD_AGE_HINT, INFANT_AGE_HINT, formatPackageDate, guestLabel } from "@/lib/package-options";
 import { useBookingFlow } from "@/components/BookingFlow";
 
 type OptionQuestion = {
@@ -25,6 +25,7 @@ type OptionRef = {
 };
 
 type Quote = {
+  price?: { adult: number; child: number; infant: number };
   subtotalCents: number;
   discountCents: number;
   totalCents: number;
@@ -93,7 +94,6 @@ function AgeStepper({
  */
 export function BookingWidget({
   productId,
-  slug,
   name,
   currency,
   basePriceCents,
@@ -104,7 +104,6 @@ export function BookingWidget({
   options,
 }: {
   productId: string;
-  slug: string;
   name: string;
   currency: string;
   basePriceCents: number;
@@ -139,9 +138,19 @@ export function BookingWidget({
 
   const [step, setStep] = useState<"choose" | "details">("choose");
   const [user, setUser] = useState<{ name: string; email: string; role: string } | null>(null);
-  const [form, setForm] = useState({ customerName: "", customerPhone: "", pickupLocation: "", specialRequests: "" });
+  const [form, setForm] = useState({
+    customerName: "",
+    customerEmail: "",
+    customerPhone: "",
+    pickupLocation: "",
+    specialRequests: "",
+  });
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
+  // Guest checkout: set after a signed-out visitor books, so the widget can
+  // show the confirmation inline instead of redirecting to the sign-in-only
+  // checkout page.
+  const [booked, setBooked] = useState<{ reference: string; email: string } | null>(null);
 
   const selectedOption = useMemo(
     () => options.find((o) => o.id === optionId),
@@ -231,30 +240,35 @@ export function BookingWidget({
   }
 
   const overCapacity = tourType === "GROUP" && total > maxParticipants;
-  const underMinimum = total < minParticipants;
+  // The minimum is measured in ADULTS — children (2–6) and infants (under 3)
+  // are only added on top of it, so a family of 1 adult + 2 kids can't stand
+  // in for a 2-adult minimum.
+  const underMinimum = adultsN() < minParticipants;
   const soldOut = remaining !== null && remaining <= 0;
   const canBook =
     Boolean(date) && !error && !loading && quote !== null && !overCapacity && !underMinimum && !soldOut;
 
   const display = (cents: number) => formatMoney(cents, quote?.currency || currency);
 
-  // Tours with pricing options reveal the "Choose your package" cards under
-  // Highlights on the first press; everything without options books directly.
-  const needsCheck = options.length > 0 && !checked;
+  // Tours with pricing options reveal the "Choose your package" cards (and
+  // their prices) on the first press; everything without options books directly
+  // and shows its price straight away.
+  const hasOptions = options.length > 0;
+  const needsCheck = hasOptions && !checked;
+  // Nothing about the price is shown until availability (and with it the
+  // package prices) has been checked.
+  const showPrice = !hasOptions || checked;
 
   function checkAvailability() {
     setChecked(true);
   }
 
   function startBooking() {
-    if (!user) {
-      router.push(`/login?next=/trip/${encodeURIComponent(slug)}`);
-      return;
-    }
-    if (user.role !== "CUSTOMER") {
+    if (user && user.role !== "CUSTOMER") {
       setError("Only customer accounts can book tours. Sign in with a customer account.");
       return;
     }
+    // No session? Continue as guest — contact details are collected below.
     setStep("details");
     setError(null);
   }
@@ -262,6 +276,11 @@ export function BookingWidget({
   async function confirmBooking() {
     if (!form.customerName.trim() || form.customerName.trim().length < 2) {
       setError("Please enter the lead traveller's name.");
+      return;
+    }
+    const guestEmail = form.customerEmail.trim();
+    if (!user && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guestEmail)) {
+      setError("Please enter a valid email — your booking confirmation is sent there.");
       return;
     }
     const missing = optionQuestions.find(
@@ -286,7 +305,7 @@ export function BookingWidget({
           children: childrenN(),
           infants: infantsN(),
           customerName: form.customerName,
-          customerEmail: user?.email ?? "",
+          customerEmail: user?.email ?? guestEmail,
           customerPhone: form.customerPhone || null,
           pickupLocation: form.pickupLocation || null,
           specialRequests: form.specialRequests || null,
@@ -306,7 +325,11 @@ export function BookingWidget({
         setError(data?.error?.message ?? "We could not create the booking. Please try again.");
         return;
       }
-      router.push(data.redirect || `/checkout/${data.id}`);
+      if (user) {
+        router.push(data.redirect || `/checkout/${data.id}`);
+      } else {
+        setBooked({ reference: data.reference, email: guestEmail });
+      }
     } catch {
       setError("Network error — your booking was not created.");
     } finally {
@@ -314,25 +337,72 @@ export function BookingWidget({
     }
   }
 
+  // Guest booking completed — show the confirmation inline (the checkout
+  // and account pages require a session).
+  if (booked) {
+    return (
+      <aside className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 text-center">
+          <p className="text-3xl" aria-hidden>
+            🎉
+          </p>
+          <h2 className="mt-2 font-display text-xl font-extrabold text-slate-900">
+            Booking received
+          </h2>
+          <p className="mt-2 text-sm text-slate-700">
+            Reference{" "}
+            <span className="font-mono font-bold text-slate-900">{booked.reference}</span>
+          </p>
+          <p className="mt-2 text-sm text-slate-600">
+            Confirmation sent to <span className="font-semibold">{booked.email}</span>.
+          </p>
+          <p className="mt-3 text-xs text-slate-500">
+            Save your reference. Sign in or create an account with this email to view,
+            change or pay for your booking.
+          </p>
+        </div>
+        <ul className="mt-4 space-y-1 text-xs text-slate-500">
+          <li>🔒 Secure booking — you only pay after choosing a payment method</li>
+          <li>⚡ Instant confirmation on most tours</li>
+          <li>🗓️ Free cancellation on eligible tours</li>
+        </ul>
+        <p className="mt-4 truncate text-xs text-slate-400" title={name}>
+          {name}
+        </p>
+      </aside>
+    );
+  }
+
   return (
     <aside className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex items-baseline justify-between gap-2">
-        <div className="min-w-0">
-          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-brand-700">
-            From
-          </p>
-          <p className="font-display text-2xl font-extrabold text-brand-800">
-            {display(basePriceCents)}
-            {priceAdultCents > basePriceCents && (
-              <span className="ml-2 text-sm font-semibold text-slate-400 line-through">
-                {display(priceAdultCents)}
-              </span>
-            )}
-          </p>
-          <p className="mt-0.5 text-xs text-slate-500">per pax · lowest tier</p>
+      {showPrice ? (
+        <div className="flex items-baseline justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-brand-700">
+              From
+            </p>
+            <p className="font-display text-2xl font-extrabold text-brand-800">
+              {display(quote?.price?.adult ?? basePriceCents)}
+              {priceAdultCents > (quote?.price?.adult ?? basePriceCents) && (
+                <span className="ml-2 text-sm font-semibold text-slate-400 line-through">
+                  {display(priceAdultCents)}
+                </span>
+              )}
+            </p>
+            <p className="mt-0.5 text-xs text-slate-500">
+              {selectedOption ? `${selectedOption.name} · ` : ""}per adult · {guestLabel(total)}
+            </p>
+          </div>
+          {loading && <span className="shrink-0 text-xs text-slate-400">Updating…</span>}
         </div>
-        {loading && <span className="shrink-0 text-xs text-slate-400">Updating…</span>}
-      </div>
+      ) : (
+        <div className="flex items-start justify-between gap-2">
+          <p className="text-sm text-slate-500">
+            Check availability to see the prices for your date and party.
+          </p>
+          {loading && <span className="shrink-0 text-xs text-slate-400">Updating…</span>}
+        </div>
+      )}
 
       <div className="mt-4 space-y-4 border-t border-slate-100 pt-4">
         <div>
@@ -366,8 +436,8 @@ export function BookingWidget({
             <button
               type="button"
               aria-label="Remove one adult"
-              onClick={() => setAdults(String(Math.max(1, adultsN() - 1)))}
-              disabled={adultsN() <= 1}
+              onClick={() => setAdults(String(Math.max(minParticipants, adultsN() - 1)))}
+              disabled={adultsN() <= minParticipants}
               className="grid h-9 w-9 place-items-center rounded-lg text-xl font-bold text-slate-600 hover:bg-slate-100 disabled:pointer-events-none disabled:opacity-40"
             >
               −
@@ -383,17 +453,22 @@ export function BookingWidget({
               +
             </button>
           </div>
+          <p className="mt-1 text-xs text-slate-500">
+            {adultsN()} adult{adultsN() === 1 ? "" : "s"}
+            {childrenN() > 0 && ` · ${childrenN()} child${childrenN() === 1 ? "" : "ren"}`}
+            {infantsN() > 0 && ` · ${infantsN()} infant${infantsN() === 1 ? "" : "s"}`}
+          </p>
           <div className="mt-2 grid grid-cols-2 gap-2">
             <AgeStepper
               label="Children"
-              hint="3–12 yrs"
+              hint={CHILD_AGE_HINT}
               value={childrenN()}
               min={0}
               onChange={(v) => setChildren(String(v))}
             />
             <AgeStepper
               label="Infants"
-              hint="< 3 yrs"
+              hint={INFANT_AGE_HINT}
               value={infantsN()}
               min={0}
               onChange={(v) => setInfants(String(v))}
@@ -401,17 +476,23 @@ export function BookingWidget({
           </div>
           {minParticipants > 1 && (
             <p className="mt-1.5 text-xs text-slate-500">
-              Minimum {minParticipants} traveller{minParticipants === 1 ? "" : "s"}
+              Minimum {minParticipants} adult{minParticipants === 1 ? "" : "s"} — children and
+              infants are added on top.
             </p>
           )}
         </div>
 
-        <Field label="Coupon code" htmlFor="bw-coupon" hint="Optional">
+        <Field
+          label="Coupon code"
+          htmlFor="bw-coupon"
+          hint={user ? "Optional" : "Members only — sign in to use a coupon code"}
+        >
           <Input
             id="bw-coupon"
-            value={coupon}
+            value={user ? coupon : ""}
             onChange={(e) => setCoupon(e.target.value.toUpperCase())}
-            placeholder="BALI10"
+            placeholder={user ? "BALI10" : "Sign in to unlock"}
+            disabled={!user}
           />
         </Field>
       </div>
@@ -422,7 +503,7 @@ export function BookingWidget({
         </p>
       )}
 
-      {quote && (
+      {showPrice && quote && (
         <dl className="mt-4 space-y-1.5 border-t border-slate-100 pt-4 text-sm">
           <div className="flex items-center justify-between text-slate-600">
             <dt>
@@ -455,7 +536,10 @@ export function BookingWidget({
       )}
       {underMinimum && !overCapacity && (
         <div className="mt-3">
-          <Alert tone="warning">Minimum {minParticipants} traveller(s) for this tour.</Alert>
+          <Alert tone="warning">
+            This tour needs at least {minParticipants} adult{minParticipants === 1 ? "" : "s"} —
+            add {minParticipants - adultsN()} more to continue.
+          </Alert>
         </div>
       )}
 
@@ -467,7 +551,7 @@ export function BookingWidget({
             onClick={needsCheck ? checkAvailability : startBooking}
             disabled={!canBook}
           >
-            {needsCheck ? "Check availability" : user ? "Book now" : "Sign in to book"}
+            {needsCheck ? "Check availability" : "Book now"}
           </Button>
           <p className="mt-2.5 text-center text-xs text-slate-400">
             Payment after confirmation
@@ -485,8 +569,22 @@ export function BookingWidget({
               required
             />
           </Field>
-          <Field label="Email" htmlFor="bw-email" hint="Your booking confirmation is sent here.">
-            <Input id="bw-email" value={user?.email ?? ""} readOnly className="bg-slate-50" />
+          <Field
+            label="Email"
+            htmlFor="bw-email"
+            hint="Your booking confirmation is sent here."
+            required={!user}
+          >
+            <Input
+              id="bw-email"
+              type="email"
+              value={user?.email ?? form.customerEmail}
+              onChange={(e) => setForm((f) => ({ ...f, customerEmail: e.target.value }))}
+              readOnly={Boolean(user)}
+              className={user ? "bg-slate-50" : ""}
+              maxLength={120}
+              required
+            />
           </Field>
           <Field label="Phone / WhatsApp" htmlFor="bw-phone" hint="Optional">
             <Input

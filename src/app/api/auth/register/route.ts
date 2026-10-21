@@ -37,6 +37,13 @@ export async function POST(req: Request) {
       },
     });
 
+    // Guest bookings made with this email now belong to the new account
+    // (guest bookings keep customerUserId null until an account adopts them).
+    await prisma.booking.updateMany({
+      where: { customerEmail: email, customerUserId: null },
+      data: { customerId: user.id, customerUserId: user.id },
+    });
+
     // Verification link (signed, 24h) — logged to the outbox in development.
     const token = signValue(`verify:${user.id}`, 60 * 24);
     await sendEmail({

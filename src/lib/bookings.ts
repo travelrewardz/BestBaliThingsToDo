@@ -24,7 +24,7 @@ import {
 import { applyBps, formatMoney } from "@/lib/money";
 import { sendEmail } from "@/lib/email";
 import { notify, notifyRole, notifySupplier, pushRealtime } from "@/lib/notifications";
-import { randomToken } from "@/lib/auth";
+import { hashPassword, randomToken } from "@/lib/auth";
 import { parseStringList } from "@/lib/tours";
 import { logger, logError } from "@/lib/logger";
 import type { SessionUser } from "@/lib/auth";
@@ -40,6 +40,21 @@ export class BookingError extends Error {
   }
 }
 
+/**
+ * Promotions are member-only: automatic promotions never apply to signed-out
+ * visitors and coupon codes require a signed-in account. Guests always book
+ * at list prices. Enforced in quoteBooking, so previews and real bookings
+ * price identically.
+ */
+export function assertMemberPromotions(
+  userId: string | null | undefined,
+  couponCode?: string | null
+): void {
+  if (couponCode && !userId) {
+    throw new BookingError(400, "invalid_coupon", "Sign in to use a coupon code");
+  }
+}
+
 export type QuoteInput = {
   productId: string;
   optionId?: string | null;
@@ -48,6 +63,7 @@ export type QuoteInput = {
   children?: number;
   infants?: number;
   couponCode?: string | null;
+  /** Signed-in account, resolved from the session cookie server-side (null = guest). */
   userId?: string | null;
 };
 
@@ -132,11 +148,16 @@ export async function quoteBooking(input: QuoteInput): Promise<QuoteResult> {
       `This group tour accepts a maximum of ${product.maxParticipants} travelers`
     );
   }
-  if (counts.total < product.minParticipants) {
+  // The minimum is measured in adults — children and infants are added on
+  // top of it, so a single parent with two kids can't stand in for a
+  // two-adult minimum.
+  if (counts.adults < product.minParticipants) {
     throw new BookingError(
       400,
       "invalid",
-      `Minimum ${product.minParticipants} participant(s) required`
+      `Minimum ${product.minParticipants} adult${
+        product.minParticipants === 1 ? "" : "s"
+      } required — children and infants are extra`
     );
   }
 
@@ -160,6 +181,7 @@ export async function quoteBooking(input: QuoteInput): Promise<QuoteResult> {
   let discountReason: string | undefined;
 
   if (input.couponCode) {
+    assertMemberPromotions(input.userId, input.couponCode);
     const coupon = await prisma.coupon.findUnique({
       where: { code: input.couponCode.trim().toUpperCase() },
     });
@@ -182,7 +204,8 @@ export async function quoteBooking(input: QuoteInput): Promise<QuoteResult> {
     discountCents = couponDiscount(check.coupon, subtotalCents);
     couponCode = check.coupon.code;
     discountReason = `Coupon ${check.coupon.code}`;
-  } else {
+  } else if (input.userId) {
+    // Automatic promotions are member-only too — guests see list prices.
     const promotions = await prisma.promotion.findMany({ where: { active: true } });
     const promo = promotionDiscount(promotions, {
       subtotalCents,
@@ -269,8 +292,49 @@ export type CreateBookingInput = QuoteInput & {
   pickupLocation?: string | null;
   specialRequests?: string | null;
   answers?: BookingAnswerInput[];
-  userId: string;
+  // userId comes from QuoteInput: null/undefined = guest booking.
 };
+
+/**
+ * Who a booking belongs to. Signed-in users book on their own account; a
+ * guest booking attaches to an existing account with the same email when one
+ * exists (the confirmation goes to that address anyway), and otherwise to a
+ * synthetic non-loginable user row — Booking.customerId is required by the
+ * schema. customerUserId stays null for guests so an account created later
+ * with that email can adopt the booking (see the register route).
+ */
+async function resolveBookingOwner(
+  db: Prisma.TransactionClient | typeof prisma,
+  input: CreateBookingInput
+): Promise<{ customerId: string; customerUserId: string | null }> {
+  if (input.userId) {
+    return { customerId: input.userId, customerUserId: input.userId };
+  }
+  const email = input.customerEmail.trim().toLowerCase();
+  const existing = await db.user.findUnique({ where: { email }, select: { id: true } });
+  if (existing) return { customerId: existing.id, customerUserId: null };
+
+  const customerRole = await db.role.findUnique({
+    where: { name: "customer" },
+    select: { id: true },
+  });
+  const guest = await db.user.create({
+    data: {
+      // Synthetic address: the real contact email lives on the booking itself
+      // (all confirmations go to Booking.customerEmail), so a guest can still
+      // register their real email later without an "already exists" clash.
+      email: `guest-${randomToken(16)}@guest.invalid`,
+      name: input.customerName.trim(),
+      phone: input.customerPhone?.trim() || null,
+      passwordHash: await hashPassword(randomToken(32)),
+      role: "CUSTOMER",
+      roleId: customerRole?.id ?? null,
+      status: "ACTIVE",
+    },
+    select: { id: true },
+  });
+  return { customerId: guest.id, customerUserId: null };
+}
 
 /**
  * Creates a booking atomically:
@@ -336,12 +400,13 @@ export async function createBooking(input: CreateBookingInput): Promise<Booking>
   try {
     booking = await prisma.$transaction(
       async (tx) => {
+        const owner = await resolveBookingOwner(tx, input);
         await reserveSeats(tx, product, date, counts.total);
         const reference = await nextReference(tx);
         const created = await tx.booking.create({
           data: {
             reference,
-            customerId: input.userId,
+            customerId: owner.customerId,
             supplierId: product.supplierId,
             productSlug: product.slug,
             productName: product.name,
@@ -357,7 +422,7 @@ export async function createBooking(input: CreateBookingInput): Promise<Booking>
             customerName: input.customerName.trim(),
             customerEmail: input.customerEmail.trim().toLowerCase(),
             customerPhone: input.customerPhone ?? null,
-            customerUserId: input.userId,
+            customerUserId: owner.customerUserId,
             adults: counts.adults,
             children: counts.children,
             infants: counts.infants,

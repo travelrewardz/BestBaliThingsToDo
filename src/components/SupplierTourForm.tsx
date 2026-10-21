@@ -682,7 +682,12 @@ export function SupplierTourForm({
                   <option value="PRIVATE">Private tour</option>
                 </Select>
               </Field>
-              <Field label="Min pax" htmlFor="minParticipants" required>
+              <Field
+                label="Min adults (required)"
+                htmlFor="minParticipants"
+                hint="Adults only — children (2–6) and infants (under 3) are added on top of this minimum."
+                required
+              >
                 <Input
                   id="minParticipants"
                   type="number"
@@ -692,7 +697,7 @@ export function SupplierTourForm({
                   onChange={set("minParticipants")}
                 />
               </Field>
-              <Field label="Max pax" htmlFor="maxParticipants" required>
+              <Field label="Max pax" htmlFor="maxParticipants" hint="Total travellers including children and infants." required>
                 <Input
                   id="maxParticipants"
                   type="number"

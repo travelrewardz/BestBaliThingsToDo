@@ -480,7 +480,6 @@ export default async function TourPage({ params }: { params: Promise<{ slug: str
         <div className="lg:sticky lg:top-6 lg:self-start">
           <BookingWidget
             productId={tour.id}
-            slug={tour.slug}
             name={tour.name}
             currency={tour.currency}
             basePriceCents={effective}

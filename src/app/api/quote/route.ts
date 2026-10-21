@@ -1,4 +1,5 @@
 import { handle, jsonOk, ApiError, parseJson } from "@/lib/api";
+import { resolveUserFromToken, tokenFromRequest } from "@/lib/auth";
 import { quoteBooking, BookingError } from "@/lib/bookings";
 import { AvailabilityError } from "@/lib/availability";
 import { z } from "zod";
@@ -12,7 +13,8 @@ const schema = z.object({
   children: z.number().int().min(0).max(50).optional(),
   infants: z.number().int().min(0).max(50).optional(),
   couponCode: z.string().max(40).nullish(),
-  userId: z.string().nullish(),
+  // No userId field: promotion eligibility is derived from the session cookie
+  // below, never from the request body.
 });
 
 function mapError(err: unknown): never {
@@ -27,8 +29,9 @@ function mapError(err: unknown): never {
 export async function POST(req: Request) {
   return handle(req, async (req) => {
     const body = await parseJson(req, schema);
+    const sessionUser = await resolveUserFromToken(tokenFromRequest(req));
     try {
-      const quote = await quoteBooking(body);
+      const quote = await quoteBooking({ ...body, userId: sessionUser?.id ?? null });
       return jsonOk({
         quote,
         display: {

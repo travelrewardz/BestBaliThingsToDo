@@ -7,7 +7,9 @@ import {
   INITIAL_VISIBLE_OPTIONS,
   fallbackTotal,
   formatPackageDate,
+  fromPrice,
   guestLabel,
+  optionAvailability,
   perPersonPrice,
   visibleOptions,
 } from "@/lib/package-options";
@@ -45,6 +47,7 @@ export function PackageCards({
   date,
   counts,
   totals,
+  quoteErrors,
   optionId,
   onSelect,
 }: {
@@ -56,6 +59,8 @@ export function PackageCards({
   date: string;
   counts: PackageCounts;
   totals: Record<string, number | null>;
+  /** Quote failures per option (sold out, closed date…) — makes the card unbookable. */
+  quoteErrors?: Record<string, string | null>;
   optionId: string;
   onSelect: (id: string) => void;
 }) {
@@ -99,22 +104,35 @@ export function PackageCards({
 
       <div className="mt-5 grid gap-4 sm:grid-cols-2">
         {visible.map((o) => {
-          const selected = optionId === o.id;
+          // Options the party can't take stay visible (dimmed, unselectable) so
+          // the cheaper "from" prices that need a bigger group are still seen.
+          const availability = optionAvailability(o, counts, { minAdults: minPax, maxPax });
+          const quotedError = quoteErrors?.[o.id] ?? null;
+          const bookable = availability.bookable && !quotedError;
+          const reason = availability.reason ?? quotedError;
+          const selected = bookable && optionId === o.id;
           const expanded = expandedId === o.id;
           const total = totals[o.id] ?? fallbackTotal(o, basePrices, counts);
           const perPerson = perPersonPrice(total, counts.total);
+          const from = fromPrice(o, basePrices.adult);
           return (
             <article
               key={o.id}
+              role="group"
+              aria-disabled={!bookable}
               className={`flex flex-col rounded-2xl border p-5 transition-colors ${
                 selected
                   ? "border-brand-600 bg-brand-50/40 ring-1 ring-brand-600"
-                  : "border-slate-200 bg-white"
+                  : bookable
+                    ? "border-slate-200 bg-white"
+                    : "border-dashed border-slate-300 bg-slate-50"
               }`}
             >
+              <div className={bookable ? "flex flex-1 flex-col" : "flex flex-1 flex-col opacity-60"}>
               <h3 className="font-display text-lg font-bold text-slate-900">{o.name}</h3>
               <p className="mt-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">
-                Per person · {minPax}-{maxPax} pax{o.startTime ? ` · Starts ${o.startTime}` : ""}
+                Per person · {availability.minPax}-{availability.maxPax} pax
+                {o.startTime ? ` · Starts ${o.startTime}` : ""}
               </p>
 
               {o.description && (
@@ -139,29 +157,51 @@ export function PackageCards({
               <div className="mt-auto flex items-end justify-between gap-3 border-t border-slate-100 pt-3">
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                    Per person
+                    From
                   </p>
                   <p className="font-display text-xl font-extrabold text-brand-700">
-                    {formatMoney(perPerson, currency)}
+                    {formatMoney(from, currency)}
                   </p>
+                  <p className="text-[11px] text-slate-400">per person</p>
                 </div>
-                <div className="text-right">
-                  <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                    Total
-                  </p>
-                  <p className="font-display text-xl font-extrabold text-slate-900">
-                    {formatMoney(total, currency)}
-                  </p>
-                </div>
+                {bookable ? (
+                  <div className="text-right">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                      Total for {counts.total}
+                    </p>
+                    <p className="font-display text-xl font-extrabold text-slate-900">
+                      {formatMoney(total, currency)}
+                    </p>
+                    {perPerson !== from && (
+                      <p className="text-[11px] text-slate-400">
+                        {formatMoney(perPerson, currency)} / person
+                      </p>
+                    )}
+                  </div>
+                ) : null}
               </div>
 
-              <Button
-                className="mt-4 w-full uppercase tracking-wide"
-                variant={selected ? "dark" : "primary"}
-                onClick={() => onSelect(selected ? "" : o.id)}
-              >
-                {selected ? "✓ Selected" : "Select"}
-              </Button>
+              {bookable ? (
+                <Button
+                  className="mt-4 w-full uppercase tracking-wide"
+                  variant={selected ? "dark" : "primary"}
+                  onClick={() => onSelect(selected ? "" : o.id)}
+                >
+                  {selected ? "✓ Selected" : "Select"}
+                </Button>
+              ) : (
+                <>
+                  <p className="mt-3 text-[11px] font-semibold text-amber-700">{reason}</p>
+                  <Button
+                    className="mt-2 w-full cursor-not-allowed uppercase tracking-wide"
+                    variant="ghost"
+                    disabled
+                  >
+                    Not available
+                  </Button>
+                </>
+              )}
+              </div>
             </article>
           );
         })}
@@ -197,9 +237,12 @@ export function AvailableOptions({
 }) {
   const { checked, optionId, setOptionId, date, counts } = useBookingFlow();
   const [totals, setTotals] = useState<Record<string, number | null>>({});
+  const [quoteErrors, setQuoteErrors] = useState<Record<string, string | null>>({});
 
   // One quote per package so each card's total matches the real price for the
-  // selected date/party (weekend rates, option overrides, surcharges…).
+  // selected date/party (weekend rates, option overrides, surcharges…). A
+  // failing quote (sold out, wrong party size, closed date) marks the card as
+  // not bookable instead of dropping it from the page.
   useEffect(() => {
     if (!checked || options.length === 0) return;
     const controller = new AbortController();
@@ -219,12 +262,18 @@ export function AvailableOptions({
               infants: counts.infants,
             }),
           })
-            .then((r) => (r.ok ? r.json() : null))
-            .then((d) => [o.id, (d?.quote?.subtotalCents as number | undefined) ?? null] as const)
-            .catch(() => [o.id, null] as const)
+            .then((r) => r.json().then((d) => ({ ok: r.ok, d })))
+            .then(({ ok, d }) => [
+              o.id,
+              (d?.quote?.subtotalCents as number | undefined) ?? null,
+              ok ? null : ((d?.error?.message as string | undefined) ?? "Not available for this group"),
+            ] as const)
+            .catch(() => [o.id, null, "Not available for this group"] as const)
         )
       ).then((entries) => {
-        if (!controller.signal.aborted) setTotals(Object.fromEntries(entries));
+        if (controller.signal.aborted) return;
+        setTotals(Object.fromEntries(entries.map(([id, total]) => [id, total])));
+        setQuoteErrors(Object.fromEntries(entries.map(([id, , error]) => [id, error])));
       });
     }, 300);
     return () => {
@@ -232,6 +281,17 @@ export function AvailableOptions({
       clearTimeout(timer);
     };
   }, [checked, productId, options, date, counts]);
+
+  // Never leave a selected package selected when the party can no longer take
+  // it (e.g. the customer drops back to one traveller on a 2+ package).
+  useEffect(() => {
+    if (!optionId) return;
+    const selected = options.find((o) => o.id === optionId);
+    if (!selected) return;
+    if (!optionAvailability(selected, counts, { minAdults: minPax, maxPax }).bookable) {
+      setOptionId("");
+    }
+  }, [optionId, options, counts, minPax, maxPax, setOptionId]);
 
   // Bring the freshly revealed section into view (it sits under Highlights,
   // above the sticky widget on desktop, well above it on mobile).
@@ -253,6 +313,7 @@ export function AvailableOptions({
       date={date}
       counts={counts}
       totals={totals}
+      quoteErrors={quoteErrors}
       optionId={optionId}
       onSelect={setOptionId}
     />
