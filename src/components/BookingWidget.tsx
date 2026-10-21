@@ -249,18 +249,21 @@ export function BookingWidget({
   const underMinimum = adultsN() < minParticipants;
   const soldOut = remaining !== null && remaining <= 0;
   // Tours with pricing options book through a selected package; the base price
-  // is only a display fallback, so an option must be chosen before booking.
+  // is only a display fallback. "Check availability" only needs a valid date
+  // and party (it's what reveals the packages), while "Book now" additionally
+  // requires a selected package.
   const hasOptions = options.length > 0;
   const needsCheck = hasOptions && !checked;
-  const canBook =
+  const baseValid =
     Boolean(date) &&
     !error &&
     !loading &&
     quote !== null &&
     !overCapacity &&
     !underMinimum &&
-    !soldOut &&
-    (!hasOptions || Boolean(optionId));
+    !soldOut;
+  const canCheck = baseValid;
+  const canBook = baseValid && (!hasOptions || Boolean(optionId));
 
   const display = (cents: number) => formatMoney(cents, quote?.currency || currency);
 
@@ -561,7 +564,7 @@ export function BookingWidget({
             className="mt-4 w-full uppercase tracking-wide"
             size="lg"
             onClick={needsCheck ? checkAvailability : startBooking}
-            disabled={!canBook}
+            disabled={needsCheck ? !canCheck : !canBook}
           >
             {needsCheck ? "Check availability" : "Book now"}
           </Button>
