@@ -4,7 +4,8 @@ import { notFound } from "next/navigation";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { parseStringList } from "@/lib/tours";
-import { Badge, ButtonLink, SmartImage, Stars } from "@/components/ui";
+import { Badge, ButtonLink, Stars } from "@/components/ui";
+import { PhotoGallery } from "@/components/PhotoGallery";
 import { TourCard } from "@/components/TourCard";
 import { FavoriteButton } from "@/components/FavoriteButton";
 import { BookingWidget } from "@/components/BookingWidget";
@@ -158,7 +159,6 @@ export default async function TourPage({ params }: { params: Promise<{ slug: str
   const base = absoluteUrl("/");
   const gallery = tour.media.map((m) => m.url);
   const mainImage = gallery[0] ?? null;
-  const thumbs = gallery.slice(1, 5);
   const effective = effectiveFromPriceCents(tour.priceAdultCents, tour.options);
   const highlights = parseStringArray(tour.highlights);
   const inclusions = parseStringArray(tour.inclusions);
@@ -218,26 +218,14 @@ export default async function TourPage({ params }: { params: Promise<{ slug: str
         <span className="text-slate-700">{tour.name}</span>
       </nav>
 
-      {/* Gallery */}
-      <div className="mt-4 grid gap-2 lg:grid-cols-[2fr_1fr]">
-        <div className="relative aspect-[16/10] overflow-hidden rounded-2xl bg-slate-100">
-          <SmartImage src={mainImage} alt={tour.name} fill priority sizes="(max-width: 1024px) 100vw, 60vw" />
-          <div className="absolute left-4 top-4 flex flex-wrap gap-1.5">
-            {tour.tourType === "PRIVATE" && <Badge tone="brand">Private</Badge>}
-            {tour.instantConfirm && <Badge tone="green">Instant confirmation</Badge>}
-            {tour.freeCancellation && <Badge tone="neutral">Free cancellation</Badge>}
-          </div>
+      {/* Gallery — click any photo to enlarge and browse all of them */}
+      <PhotoGallery images={gallery} name={tour.name}>
+        <div className="absolute left-4 top-4 flex flex-wrap gap-1.5">
+          {tour.tourType === "PRIVATE" && <Badge tone="brand">Private</Badge>}
+          {tour.instantConfirm && <Badge tone="green">Instant confirmation</Badge>}
+          {tour.freeCancellation && <Badge tone="neutral">Free cancellation</Badge>}
         </div>
-        {thumbs.length > 0 && (
-          <div className="hidden grid-rows-2 gap-2 lg:grid">
-            {thumbs.slice(0, 2).map((url, i) => (
-              <div key={i} className="relative overflow-hidden rounded-2xl bg-slate-100">
-                <SmartImage src={url} alt={`${tour.name} ${i + 2}`} fill sizes="30vw" />
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      </PhotoGallery>
 
       <BookingFlowProvider
         bookingCutoffHours={tour.bookingCutoffHours}

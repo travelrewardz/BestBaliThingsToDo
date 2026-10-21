@@ -13,6 +13,7 @@ export function SmartImage({
   fill = false,
   sizes,
   priority = false,
+  fit = "cover",
 }: {
   src?: string | null;
   alt: string;
@@ -20,7 +21,10 @@ export function SmartImage({
   fill?: boolean;
   sizes?: string;
   priority?: boolean;
+  /** object-fit — "contain" keeps the whole photo visible (lightboxes). */
+  fit?: "cover" | "contain";
 }) {
+  const fitClass = fit === "contain" ? "object-contain" : "object-cover";
   if (!src) {
     return (
       <div
@@ -42,7 +46,7 @@ export function SmartImage({
         height={fill ? undefined : 600}
         sizes={sizes || (fill ? "(max-width: 768px) 100vw, 33vw" : undefined)}
         priority={priority}
-        className={`object-cover ${className}`}
+        className={`${fitClass} ${className}`}
       />
     );
   }
@@ -53,7 +57,7 @@ export function SmartImage({
       alt={alt}
       loading={priority ? "eager" : "lazy"}
       decoding="async"
-      className={`${fill ? "absolute inset-0 h-full w-full " : ""}object-cover ${className}`}
+      className={`${fill ? "absolute inset-0 h-full w-full " : ""}${fitClass} ${className}`}
     />
   );
 }
