@@ -492,6 +492,13 @@ export default async function TourPage({ params }: { params: Promise<{ slug: str
               name: o.name,
               startTime: o.startTime,
               priceAdultCents: o.priceAdultCents,
+              priceChildCents: o.priceChildCents,
+              priceInfantCents: o.priceInfantCents,
+              tiers: o.tiers.map((t) => ({
+                minPax: t.minPax,
+                maxPax: t.maxPax,
+                priceCents: t.priceCents,
+              })),
               questions: o.questions.map((q) => ({
                 id: q.id,
                 label: q.label,

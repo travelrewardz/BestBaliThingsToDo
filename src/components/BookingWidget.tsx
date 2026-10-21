@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Alert, Button, Field, Input, Select, Textarea } from "@/components/ui";
 import { formatMoney } from "@/lib/money";
-import { CHILD_AGE_HINT, INFANT_AGE_HINT, formatPackageDate, guestLabel } from "@/lib/package-options";
+import { CHILD_AGE_HINT, INFANT_AGE_HINT, formatPackageDate, fromPrice, guestLabel } from "@/lib/package-options";
 import { useBookingFlow } from "@/components/BookingFlow";
 
 type OptionQuestion = {
@@ -21,6 +21,9 @@ type OptionRef = {
   name: string;
   startTime: string | null;
   priceAdultCents: number | null;
+  priceChildCents: number | null;
+  priceInfantCents: number | null;
+  tiers?: { minPax: number; maxPax: number | null; priceCents: number }[] | null;
   questions?: OptionQuestion[];
 };
 
@@ -245,19 +248,37 @@ export function BookingWidget({
   // in for a 2-adult minimum.
   const underMinimum = adultsN() < minParticipants;
   const soldOut = remaining !== null && remaining <= 0;
+  // Tours with pricing options book through a selected package; the base price
+  // is only a display fallback, so an option must be chosen before booking.
+  const hasOptions = options.length > 0;
+  const needsCheck = hasOptions && !checked;
   const canBook =
-    Boolean(date) && !error && !loading && quote !== null && !overCapacity && !underMinimum && !soldOut;
+    Boolean(date) &&
+    !error &&
+    !loading &&
+    quote !== null &&
+    !overCapacity &&
+    !underMinimum &&
+    !soldOut &&
+    (!hasOptions || Boolean(optionId));
 
   const display = (cents: number) => formatMoney(cents, quote?.currency || currency);
 
-  // Tours with pricing options reveal the "Choose your package" cards (and
-  // their prices) on the first press; everything without options books directly
-  // and shows its price straight away.
-  const hasOptions = options.length > 0;
-  const needsCheck = hasOptions && !checked;
-  // Nothing about the price is shown until availability (and with it the
-  // package prices) has been checked.
-  const showPrice = !hasOptions || checked;
+  // The "from" headline is the cheapest price this tour can ever be booked at
+  // — the lowest tier across its packages — and stays visible up front.
+  const fromCents = useMemo(
+    () =>
+      hasOptions
+        ? options.reduce(
+            (min, o) => Math.min(min, fromPrice(o, basePriceCents)),
+            Number.POSITIVE_INFINITY
+          )
+        : basePriceCents,
+    [hasOptions, options, basePriceCents]
+  );
+  // The Subtotal/Total breakdown stays hidden until the customer picks a
+  // package to book (tours without options book directly, so they show it).
+  const showBreakdown = Boolean(quote) && (!hasOptions || Boolean(optionId));
 
   function checkAvailability() {
     setChecked(true);
@@ -375,34 +396,25 @@ export function BookingWidget({
 
   return (
     <aside className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      {showPrice ? (
-        <div className="flex items-baseline justify-between gap-2">
-          <div className="min-w-0">
-            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-brand-700">
-              From
-            </p>
-            <p className="font-display text-2xl font-extrabold text-brand-800">
-              {display(quote?.price?.adult ?? basePriceCents)}
-              {priceAdultCents > (quote?.price?.adult ?? basePriceCents) && (
-                <span className="ml-2 text-sm font-semibold text-slate-400 line-through">
-                  {display(priceAdultCents)}
-                </span>
-              )}
-            </p>
-            <p className="mt-0.5 text-xs text-slate-500">
-              {selectedOption ? `${selectedOption.name} · ` : ""}per adult · {guestLabel(total)}
-            </p>
-          </div>
-          {loading && <span className="shrink-0 text-xs text-slate-400">Updating…</span>}
-        </div>
-      ) : (
-        <div className="flex items-start justify-between gap-2">
-          <p className="text-sm text-slate-500">
-            Check availability to see the prices for your date and party.
+      <div className="flex items-baseline justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-brand-700">
+            From
           </p>
-          {loading && <span className="shrink-0 text-xs text-slate-400">Updating…</span>}
+          <p className="font-display text-2xl font-extrabold text-brand-800">
+            {display(fromCents)}
+            {priceAdultCents > fromCents && (
+              <span className="ml-2 text-sm font-semibold text-slate-400 line-through">
+                {display(priceAdultCents)}
+              </span>
+            )}
+          </p>
+          <p className="mt-0.5 text-xs text-slate-500">
+            per adult · {guestLabel(total)}
+          </p>
         </div>
-      )}
+        {loading && <span className="shrink-0 text-xs text-slate-400">Updating…</span>}
+      </div>
 
       <div className="mt-4 space-y-4 border-t border-slate-100 pt-4">
         <div>
@@ -503,7 +515,7 @@ export function BookingWidget({
         </p>
       )}
 
-      {showPrice && quote && (
+      {showBreakdown && quote && (
         <dl className="mt-4 space-y-1.5 border-t border-slate-100 pt-4 text-sm">
           <div className="flex items-center justify-between text-slate-600">
             <dt>
@@ -553,6 +565,11 @@ export function BookingWidget({
           >
             {needsCheck ? "Check availability" : "Book now"}
           </Button>
+          {hasOptions && checked && !optionId && (
+            <p className="mt-2 text-center text-xs font-semibold text-slate-500">
+              Choose a package above to see your total and book.
+            </p>
+          )}
           <p className="mt-2.5 text-center text-xs text-slate-400">
             Payment after confirmation
           </p>
