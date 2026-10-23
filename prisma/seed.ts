@@ -276,6 +276,7 @@ async function main() {
     ["atv", "ATV", "ACTIVITY", "Quad biking through jungle, river and rice fields"],
     ["rafting", "Rafting", "ACTIVITY", "White-water rafting on Bali's wildest rivers"],
     ["water-sports", "Water Sports", "ACTIVITY", "Snorkeling, diving and ocean adventures"],
+    ["ubud", "Ubud Tours", "CATEGORY", "Tours and experiences around Ubud"],
     ["cultural", "Cultural Tours", "CATEGORY", "Temples, dances and Balinese traditions"],
     ["temple", "Temple Tours", "ACTIVITY", "Sacred sites and spiritual journeys"],
     ["sunrise", "Sunrise Tours", "ACTIVITY", "Early climbs and golden-hour magic"],
