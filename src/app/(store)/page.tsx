@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { SearchBox } from "@/components/SearchBox";
 import { TourCard } from "@/components/TourCard";
 import { Stars, SmartImage, ButtonLink } from "@/components/ui";
+import { DestinationGrid, type DestinationTile } from "@/components/DestinationGrid";
 import { popularProducts } from "@/lib/search";
 import { mdToText } from "@/lib/md";
 
@@ -45,7 +46,7 @@ export default async function HomePage() {
   const [tours, destinations, categories, testimonials, posts, faqs, stats] =
     await Promise.all([
       popularProducts(8),
-      prisma.destination.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" }, take: 8 }),
+      prisma.destination.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
       prisma.category.findMany({ where: { active: true, kind: "CATEGORY" }, orderBy: { sortOrder: "asc" }, take: 10 }),
       prisma.review.findMany({
         where: { status: "APPROVED" },
@@ -62,6 +63,10 @@ export default async function HomePage() {
       prisma.setting.findMany({ where: { key: { in: ["site_title_stats"] } } }),
     ]);
   void stats;
+
+  const destinationTiles: DestinationTile[] = destinations.length
+    ? destinations.map((d) => ({ id: d.id, name: d.name, slug: d.slug, heroImage: d.heroImage }))
+    : DESTINATIONS.map((d) => ({ id: d.slug, name: d.name, slug: d.slug, emoji: d.emoji }));
 
   return (
     <>
@@ -193,30 +198,7 @@ export default async function HomePage() {
       {/* ---------- Destinations ---------- */}
       <section className="mx-auto max-w-7xl px-4 py-12">
         <h2 className="text-2xl font-bold md:text-3xl">Popular destinations</h2>
-        <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-          {(destinations.length ? destinations : DESTINATIONS).map((d) => (
-            <Link
-              key={"id" in d ? (d as { id: string }).id : (d as { slug: string }).slug}
-              href={`/destination/${d.slug}`}
-              className="group relative flex aspect-[4/3] items-end overflow-hidden rounded-2xl bg-brand-800 p-4"
-            >
-              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
-              {"heroImage" in d && (d as { heroImage?: string }).heroImage && (
-                <SmartImage
-                  src={(d as { heroImage?: string }).heroImage}
-                  alt={d.name}
-                  fill
-                  sizes="(max-width: 640px) 50vw, 25vw"
-                  className="transition-transform duration-500 group-hover:scale-110"
-                />
-              )}
-              <span className="relative font-display text-lg font-bold text-white">
-                {"emoji" in d ? `${(d as { emoji: string }).emoji} ` : ""}
-                {d.name}
-              </span>
-            </Link>
-          ))}
-        </div>
+        <DestinationGrid destinations={destinationTiles} />
       </section>
 
       {/* ---------- Why book with us ---------- */}
