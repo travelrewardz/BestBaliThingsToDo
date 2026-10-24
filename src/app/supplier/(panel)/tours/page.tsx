@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { Badge, ButtonLink, EmptyState, SmartImage } from "@/components/ui";
 import { formatMoney } from "@/lib/money";
 import { requireSupplierPanel, productStatusTone, statusLabel } from "@/lib/supplier";
-import { effectiveFromPriceCents } from "@/lib/tours";
+import { effectiveFromPriceCents, parseDestinationLinks } from "@/lib/tours";
 import { SupplierTourActions } from "@/components/SupplierTourActions";
 
 export const metadata: Metadata = { title: "Tours" };
@@ -12,30 +12,35 @@ export const metadata: Metadata = { title: "Tours" };
 export default async function SupplierToursPage() {
   const { supplier } = await requireSupplierPanel();
 
-  const products = await prisma.product.findMany({
-    where: { supplierId: supplier.id },
-    orderBy: { createdAt: "desc" },
-    select: {
-      id: true,
-      name: true,
-      slug: true,
-      status: true,
-      location: true,
-      durationHours: true,
-      durationLabel: true,
-      priceAdultCents: true,
-      currency: true,
-      category: { select: { name: true } },
-      destination: { select: { name: true } },
-      media: {
-        orderBy: [{ isPrimary: "desc" }, { sortOrder: "asc" }],
-        take: 1,
-        select: { url: true },
+  const [products, destinationRows] = await Promise.all([
+    prisma.product.findMany({
+      where: { supplierId: supplier.id },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        status: true,
+        location: true,
+        durationHours: true,
+        durationLabel: true,
+        priceAdultCents: true,
+        currency: true,
+        destinationLinks: true,
+        category: { select: { name: true } },
+        destination: { select: { name: true } },
+        media: {
+          orderBy: [{ isPrimary: "desc" }, { sortOrder: "asc" }],
+          take: 1,
+          select: { url: true },
+        },
+        options: { select: { priceAdultCents: true, tiers: { select: { priceCents: true } } } },
+        _count: { select: { options: true, items: true } },
       },
-      options: { select: { priceAdultCents: true, tiers: { select: { priceCents: true } } } },
-      _count: { select: { options: true, items: true } },
-    },
-  });
+    }),
+    prisma.destination.findMany({ select: { id: true, name: true } }),
+  ]);
+  const destinationNames = new Map(destinationRows.map((d) => [d.id, d.name]));
 
   return (
     <>
@@ -70,14 +75,26 @@ export default async function SupplierToursPage() {
           {products.map((tour) => {
             const effective = effectiveFromPriceCents(tour.priceAdultCents, tour.options);
             const hasStrike = effective > 0 && effective < tour.priceAdultCents;
-            const meta = [
+            // Read destinations from destinationLinks — the same source the
+            // edit form shows — so the catalogue always matches what was saved.
+            const links = parseDestinationLinks(tour.destinationLinks);
+            const savedDestinations = links
+              .map((l) => destinationNames.get(l.id))
+              .filter((n): n is string => Boolean(n));
+            const destinationLabel =
+              savedDestinations.length > 0
+                ? savedDestinations.join(", ")
+                : tour.destination?.name; // legacy fallback, same as the edit form
+            const regions = links.flatMap((l) => l.regions).join(", ");
+            const parts = [
               tour.durationLabel ?? `${tour.durationHours} h`,
               tour.category?.name,
-              tour.destination?.name,
+              destinationLabel,
+              regions || undefined,
               tour.location,
-            ]
-              .filter(Boolean)
-              .join(" · ");
+            ].filter((p): p is string => Boolean(p));
+            // Drop repeated segments, e.g. destination "Ubud" + location "Ubud".
+            const meta = parts.filter((p, i) => parts.indexOf(p) === i).join(" · ");
 
             return (
               <li key={tour.id} className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:p-5">
