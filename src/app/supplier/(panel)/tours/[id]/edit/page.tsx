@@ -30,7 +30,7 @@ export default async function EditSupplierTourPage({
   const { id } = await params;
   const { supplier } = await requireSupplierPanel();
 
-  const [tour, categories, destinations] = await Promise.all([
+  const [tour, categories, activities, destinations] = await Promise.all([
     prisma.product.findFirst({
       where: { id, supplierId: supplier.id },
       include: {
@@ -45,7 +45,12 @@ export default async function EditSupplierTourPage({
       },
     }) as Promise<TourWithChildren | null>,
     prisma.category.findMany({
-      where: { active: true },
+      where: { active: true, kind: "CATEGORY" },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      select: { id: true, name: true },
+    }),
+    prisma.category.findMany({
+      where: { active: true, kind: "ACTIVITY" },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
       select: { id: true, name: true },
     }),
@@ -79,6 +84,7 @@ export default async function EditSupplierTourPage({
           status={tour.status}
           adminNote={tour.adminNote}
           categories={categories}
+          activities={activities}
           destinations={destinations}
           preferredCurrency={supplier.currency ?? tour.currency}
           initial={{

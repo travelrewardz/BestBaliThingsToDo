@@ -17,12 +17,16 @@ export const categorySchema = z.object({
 
 const orNull = (v: string | undefined) => (v ? v : null);
 
-/** Slug unique within the category kind (CATEGORY / ACTIVITY). */
-export async function uniqueCategorySlug(base: string, kind: string, excludeId?: string): Promise<string> {
+/**
+ * Slug unique across ALL categories — the DB constraint on `slug` is global,
+ * so a CATEGORY and an ACTIVITY can never share one (checking per-kind here
+ * used to let a colliding save fail with an opaque P2002 → 500).
+ */
+export async function uniqueCategorySlug(base: string, excludeId?: string): Promise<string> {
   const root = slugify(base);
   let slug = root;
   for (let i = 2; ; i++) {
-    const found = await prisma.category.findFirst({ where: { slug, kind }, select: { id: true } });
+    const found = await prisma.category.findFirst({ where: { slug }, select: { id: true } });
     if (!found || found.id === excludeId) break;
     slug = `${root}-${i}`.slice(0, 70);
   }
@@ -34,7 +38,7 @@ export async function POST(req: Request) {
   return handle(req, async (req) => {
     const user = await requireApiUser(req, { roles: ["ADMIN"] });
     const body = await parseJson(req, categorySchema);
-    const slug = await uniqueCategorySlug(body.slug ?? body.name, body.kind);
+    const slug = await uniqueCategorySlug(body.slug ?? body.name);
 
     const category = await prisma.category.create({
       data: {

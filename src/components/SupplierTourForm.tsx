@@ -153,6 +153,7 @@ function Section({
 export function SupplierTourForm({
   initial,
   categories,
+  activities,
   destinations,
   mode,
   tourId,
@@ -162,6 +163,7 @@ export function SupplierTourForm({
 }: {
   initial: TourFormValues;
   categories: Ref[];
+  activities: Ref[];
   destinations: DestinationRef[];
   mode: "create" | "edit";
   tourId?: string;
@@ -692,6 +694,32 @@ export function SupplierTourForm({
                 </div>
               </div>
               {categoryError && <p className="mt-2 text-sm font-semibold text-red-600">{categoryError}</p>}
+            </div>
+
+            <div className="mt-5 border-t border-slate-100 pt-4">
+              <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500">Activities</h3>
+              <p className="mt-1 text-xs text-slate-500">
+                Link this tour to an activity — it shows up on that activity&apos;s page on the
+                storefront.
+              </p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                {activities.map((a) => (
+                  <label key={a.id} className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={v.categoryLinks.includes(a.id)}
+                      onChange={() => toggleCategory(a.id)}
+                    />
+                    {a.name}
+                  </label>
+                ))}
+                {activities.length === 0 && (
+                  <p className="text-sm text-slate-400">
+                    No activities yet — your admin can add them in Admin → Destinations (Kind:
+                    ACTIVITY).
+                  </p>
+                )}
+              </div>
             </div>
           </Section>
 

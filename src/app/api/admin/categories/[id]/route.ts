@@ -35,10 +35,9 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     });
     if (!existing) throw new ApiError(404, "Category not found", "not_found");
 
-    const kind = body.kind;
     const slug =
       body.slug && body.slug !== existing.slug
-        ? await uniqueCategorySlug(body.slug, kind, existing.id)
+        ? await uniqueCategorySlug(body.slug, existing.id)
         : existing.slug;
 
     const category = await prisma.category.update({
@@ -46,7 +45,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       data: {
         name: body.name,
         slug,
-        kind,
+        kind: body.kind,
         description: orNull(body.description),
         image: orNull(body.image),
         icon: orNull(body.icon),

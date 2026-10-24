@@ -50,9 +50,14 @@ const emptyTour = (currency: string): TourFormValues => ({
 export default async function NewSupplierTourPage() {
   const { supplier } = await requireSupplierPanel();
 
-  const [categories, destinations] = await Promise.all([
+  const [categories, activities, destinations] = await Promise.all([
     prisma.category.findMany({
-      where: { active: true },
+      where: { active: true, kind: "CATEGORY" },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      select: { id: true, name: true },
+    }),
+    prisma.category.findMany({
+      where: { active: true, kind: "ACTIVITY" },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
       select: { id: true, name: true },
     }),
@@ -79,6 +84,7 @@ export default async function NewSupplierTourPage() {
           mode="create"
           initial={emptyTour(supplier.currency ?? "USD")}
           categories={categories}
+          activities={activities}
           destinations={destinations}
           preferredCurrency={supplier.currency ?? "USD"}
         />

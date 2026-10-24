@@ -9,13 +9,13 @@ const createCategorySchema = z.object({
   name: z.string().trim().min(2).max(60),
 });
 
-/** Slug unique within the CATEGORY kind. */
+/** Slug unique across ALL categories (the DB constraint on slug is global). */
 async function uniqueSlug(base: string): Promise<string> {
   const root = slugify(base);
   let slug = root;
   for (let i = 2; ; i++) {
     const found = await prisma.category.findFirst({
-      where: { slug, kind: "CATEGORY" },
+      where: { slug },
       select: { id: true },
     });
     if (!found) break;
