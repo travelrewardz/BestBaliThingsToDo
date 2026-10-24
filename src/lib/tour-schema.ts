@@ -120,6 +120,8 @@ export const tourSchema = z.object({
   // Multiple destinations (with regions) + multiple categories
   destinationLinks: z.array(destinationLinkSchema).max(20).default([]),
   categoryLinks: z.array(z.string().trim().min(1).max(40)).max(10).default([]),
+  /** Storefront trip-length grouping: /day-trips vs /multi-day-trips. */
+  tripLength: z.enum(["DAY", "MULTIDAY"]).default("DAY"),
   /** Legacy single-destination id, used by older clients / imports. */
   destinationId: optionalText(40),
 

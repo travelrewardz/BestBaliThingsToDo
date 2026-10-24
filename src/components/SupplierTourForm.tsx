@@ -57,6 +57,7 @@ export type TourFormValues = {
   seoKeywords: string;
   destinationLinks: DestinationLinkRow[];
   categoryLinks: string[];
+  tripLength: "DAY" | "MULTIDAY";
   location: string;
   meetingPoint: string;
   pickupInfo: string;
@@ -181,6 +182,8 @@ export function SupplierTourForm({
   const [newCategory, setNewCategory] = useState("");
   const [addingCategory, setAddingCategory] = useState(false);
   const [categoryError, setCategoryError] = useState<string | null>(null);
+  /** Once the supplier picks a trip length manually, duration changes stop overwriting it. */
+  const [tripLengthTouched, setTripLengthTouched] = useState(false);
 
   const set = <K extends keyof TourFormValues>(key: K) => (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
@@ -344,6 +347,7 @@ export function SupplierTourForm({
           .filter((d) => d.id)
           .map((d) => ({ id: d.id, regions: csv(d.regions) })),
         categoryLinks: v.categoryLinks,
+        tripLength: v.tripLength,
         location: v.location || undefined,
         meetingPoint: v.meetingPoint || undefined,
         pickupInfo: v.pickupInfo || undefined,
@@ -599,6 +603,48 @@ export function SupplierTourForm({
             </div>
 
             <div className="mt-5 border-t border-slate-100 pt-4">
+              <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500">Trip length</h3>
+              <p className="mt-1 text-xs text-slate-500">
+                Decides whether this tour is listed under <strong>1 Day Trips</strong> or{" "}
+                <strong>Multi-day Trips</strong> on the storefront — 24 hours or more counts as
+                multi-day.
+              </p>
+              <div className="mt-3 grid max-w-2xl gap-2 sm:grid-cols-2">
+                {([
+                  { id: "DAY", icon: "🕗", title: "1 Day Trip", hint: "Back the same day — under 24 hours" },
+                  { id: "MULTIDAY", icon: "🧳", title: "Multiday Trip", hint: "Spans a night — 24 hours or more" },
+                ] as const).map((opt) => (
+                  <label
+                    key={opt.id}
+                    className={`flex cursor-pointer items-start gap-2 rounded-xl border p-3 transition-colors ${
+                      v.tripLength === opt.id
+                        ? "border-brand-500 bg-brand-50 ring-1 ring-brand-500"
+                        : "border-slate-200 hover:border-brand-300"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="tripLength"
+                      className="mt-0.5"
+                      checked={v.tripLength === opt.id}
+                      onChange={() => {
+                        setV((prev) => ({ ...prev, tripLength: opt.id }));
+                        setTripLengthTouched(true);
+                        setSaved(null);
+                      }}
+                    />
+                    <span>
+                      <span className="block text-sm font-semibold text-slate-800">
+                        {opt.icon} {opt.title}
+                      </span>
+                      <span className="mt-0.5 block text-xs text-slate-500">{opt.hint}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-5 border-t border-slate-100 pt-4">
               <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500">Categories</h3>
               <p className="mt-1 text-xs text-slate-500">Select every category this tour belongs to.</p>
               <div className="mt-3 grid gap-2 sm:grid-cols-3">
@@ -659,7 +705,15 @@ export function SupplierTourForm({
                   min="0.5"
                   max="240"
                   value={v.durationHours}
-                  onChange={set("durationHours")}
+                  onChange={(e) => {
+                    const hours = Number(e.target.value);
+                    const auto: Partial<TourFormValues> =
+                      !tripLengthTouched && hours >= 0.5
+                        ? { tripLength: hours >= 24 ? "MULTIDAY" : "DAY" }
+                        : {};
+                    setV((prev) => ({ ...prev, durationHours: e.target.value, ...auto }));
+                    setSaved(null);
+                  }}
                 />
               </Field>
               <Field

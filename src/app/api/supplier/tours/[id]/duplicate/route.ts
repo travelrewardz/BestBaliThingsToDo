@@ -41,6 +41,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
           seoKeywords: source.seoKeywords,
           categoryId: source.categoryId,
           categoryLinks: source.categoryLinks,
+          tripLength: source.tripLength,
           destinationId: source.destinationId,
           destinationLinks: source.destinationLinks,
           location: source.location,

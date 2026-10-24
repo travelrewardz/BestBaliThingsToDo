@@ -31,16 +31,15 @@ export type SearchResult = {
 };
 
 /**
- * Trip-length classification (single source of truth):
- * - 1 Day Trip: shorter than 24h — starts and ends the same day.
- * - Multiday Trip: 24h or longer — spans at least one night.
+ * Trip-length classification (single source of truth for /day-trips and
+ * /multi-day-trips): stored on Product.tripLength and editable in the supplier
+ * tour form. DAY_TRIP_MAX_HOURS is the suggested boundary (>=24h spans a
+ * night) used by the duration filter buckets below and the DB backfill.
  */
 export const DAY_TRIP_MAX_HOURS = 24;
 
 export function tripLengthWhere(length: "day" | "multiday"): Prisma.ProductWhereInput {
-  return length === "day"
-    ? { durationHours: { lt: DAY_TRIP_MAX_HOURS } }
-    : { durationHours: { gte: DAY_TRIP_MAX_HOURS } };
+  return { tripLength: length === "day" ? "DAY" : "MULTIDAY" };
 }
 
 /**

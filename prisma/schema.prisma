@@ -257,6 +257,7 @@ model Product {
   pickupLocations    String? // JSON array of pickup zones
   durationHours      Float   @default(1)
   durationLabel      String? // e.g. "Half day (4 hours)"
+  tripLength         String  @default("DAY") // DAY | MULTIDAY — storefront /day-trips vs /multi-day-trips
   languages          String  @default("[]") // JSON array
   tourType           String  @default("GROUP") // GROUP | PRIVATE
   minParticipants    Int     @default(1)

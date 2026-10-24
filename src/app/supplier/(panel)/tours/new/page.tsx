@@ -16,6 +16,7 @@ const emptyTour = (currency: string): TourFormValues => ({
   seoKeywords: "",
   destinationLinks: [{ id: "", regions: "" }],
   categoryLinks: [],
+  tripLength: "DAY",
   location: "",
   meetingPoint: "",
   pickupInfo: "",

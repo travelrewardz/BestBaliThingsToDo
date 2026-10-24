@@ -99,6 +99,7 @@ export default async function EditSupplierTourPage({
               : tour.categoryId
                 ? [tour.categoryId]
                 : [],
+            tripLength: tour.tripLength === "MULTIDAY" ? "MULTIDAY" : "DAY",
             location: tour.location ?? "",
             meetingPoint: tour.meetingPoint ?? "",
             pickupInfo: tour.pickupInfo ?? "",

@@ -19,6 +19,7 @@ export function tourProductData(input: TourInput) {
     seoKeywords: input.seoKeywords ?? null,
     categoryId: primaryCategoryId,
     categoryLinks: JSON.stringify(input.categoryLinks),
+    tripLength: input.tripLength,
     destinationId: primaryDestinationId,
     destinationLinks: JSON.stringify(input.destinationLinks),
     location: input.location ?? null,
