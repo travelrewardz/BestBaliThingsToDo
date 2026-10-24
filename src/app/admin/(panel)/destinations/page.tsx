@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
+import { parseStringList } from "@/lib/tours";
 import { Badge, ButtonLink } from "@/components/ui";
 import { DataTable, PageHeader, type Column } from "@/components/admin/DataTable";
 import { ActionButton } from "@/components/admin/ActionButton";
@@ -10,7 +11,7 @@ type DestRow = Awaited<ReturnType<typeof load>>["destinations"][number];
 type CatRow = Awaited<ReturnType<typeof load>>["categories"][number];
 
 async function load() {
-  const [destinations, categories] = await Promise.all([
+  const [destinations, categories, products] = await Promise.all([
     prisma.destination.findMany({
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
       select: {
@@ -39,11 +40,26 @@ async function load() {
         icon: true,
         sortOrder: true,
         active: true,
-        _count: { select: { products: true } },
       },
     }),
+    prisma.product.findMany({
+      select: { id: true, categoryId: true, categoryLinks: true },
+    }),
   ]);
-  return { destinations, categories };
+
+  // Tours can belong to several categories at once (`categoryLinks`), while the
+  // legacy `categoryId` relation only holds the first one — count both.
+  const tourCountByCategory = new Map<string, number>();
+  for (const p of products) {
+    const ids = new Set(parseStringList(p.categoryLinks));
+    if (p.categoryId) ids.add(p.categoryId);
+    for (const id of ids) tourCountByCategory.set(id, (tourCountByCategory.get(id) ?? 0) + 1);
+  }
+
+  return {
+    destinations,
+    categories: categories.map((c) => ({ ...c, tourCount: tourCountByCategory.get(c.id) ?? 0 })),
+  };
 }
 
 /** Payload for the activate/deactivate toggle (the PATCH expects the full object). */
@@ -173,7 +189,7 @@ export default async function AdminDestinationsPage() {
                     <span className="block font-mono text-xs text-slate-400">/{c.slug}</span>
                   </td>
                   <td className="px-4 py-3 text-slate-600">{c.kind}</td>
-                  <td className="px-4 py-3 text-slate-800">{c._count.products}</td>
+                  <td className="px-4 py-3 text-slate-800">{c.tourCount}</td>
                   <td className="px-4 py-3"><Badge tone={c.active ? "green" : "neutral"}>{c.active ? "Active" : "Inactive"}</Badge></td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap items-center gap-1.5">
@@ -186,7 +202,7 @@ export default async function AdminDestinationsPage() {
                         body={catToggleBody(c, !c.active)}
                         label={c.active ? "Deactivate" : "Activate"}
                       />
-                      {c._count.products === 0 && (
+                      {c.tourCount === 0 && (
                         <ActionButton
                           endpoint={`/api/admin/categories/${c.id}`}
                           method="DELETE"
