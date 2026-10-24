@@ -41,6 +41,8 @@ export function HeaderInteractions() {
           <nav className="flex flex-col gap-1 text-sm font-semibold text-slate-700">
             {[
               ["/search", "All tours"],
+              ["/day-trips", "1 Day Trips"],
+              ["/multi-day-trips", "Multi-day Trips"],
               ["/activity/atv", "ATV"],
               ["/destination/nusa-penida", "Nusa Penida"],
               ["/blog", "Blog"],

@@ -13,6 +13,8 @@ async function navItems() {
   if (menus.length) return menus.map((m) => ({ title: m.title, url: m.url }));
   return [
     { title: "Tours", url: "/search" },
+    { title: "1 Day Trips", url: "/day-trips" },
+    { title: "Multi-day Trips", url: "/multi-day-trips" },
     { title: "Activities", url: "/activity/atv" },
     { title: "Destinations", url: "/destination/ubud" },
     { title: "Blog", url: "/blog" },

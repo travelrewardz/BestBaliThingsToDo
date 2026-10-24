@@ -10,6 +10,8 @@ async function footerMenus() {
   if (menus.length) return menus.map((m) => ({ title: m.title, url: m.url }));
   return [
     { title: "All tours", url: "/search" },
+    { title: "1 Day Trips", url: "/day-trips" },
+    { title: "Multi-day Trips", url: "/multi-day-trips" },
     { title: "ATV & adventure", url: "/activity/atv" },
     { title: "Ubud", url: "/destination/ubud" },
     { title: "Nusa Penida", url: "/destination/nusa-penida" },

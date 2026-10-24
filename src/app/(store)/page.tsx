@@ -130,6 +130,41 @@ export default async function HomePage() {
         )}
       </section>
 
+      {/* ---------- Trip length ---------- */}
+      <section className="mx-auto max-w-7xl px-4 pb-12">
+        <h2 className="text-2xl font-bold md:text-3xl">Browse by trip length</h2>
+        <div className="mt-6 grid gap-4 sm:grid-cols-2">
+          <Link
+            href="/day-trips"
+            className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5 transition-all hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-md"
+          >
+            <span className="text-3xl">🕗</span>
+            <span>
+              <span className="block font-display text-lg font-bold text-slate-900">
+                1 Day Trips
+              </span>
+              <span className="mt-0.5 block text-sm text-slate-500">
+                Back the same day — half-day escapes and full-day adventures
+              </span>
+            </span>
+          </Link>
+          <Link
+            href="/multi-day-trips"
+            className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5 transition-all hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-md"
+          >
+            <span className="text-3xl">🧳</span>
+            <span>
+              <span className="block font-display text-lg font-bold text-slate-900">
+                Multi-day Trips
+              </span>
+              <span className="mt-0.5 block text-sm text-slate-500">
+                24 hours or longer — island hops and overnight journeys
+              </span>
+            </span>
+          </Link>
+        </div>
+      </section>
+
       {/* ---------- Popular tours ---------- */}
       <section className="bg-sand-50 py-12">
         <div className="mx-auto max-w-7xl px-4">

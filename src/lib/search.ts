@@ -31,6 +31,19 @@ export type SearchResult = {
 };
 
 /**
+ * Trip-length classification (single source of truth):
+ * - 1 Day Trip: shorter than 24h — starts and ends the same day.
+ * - Multiday Trip: 24h or longer — spans at least one night.
+ */
+export const DAY_TRIP_MAX_HOURS = 24;
+
+export function tripLengthWhere(length: "day" | "multiday"): Prisma.ProductWhereInput {
+  return length === "day"
+    ? { durationHours: { lt: DAY_TRIP_MAX_HOURS } }
+    : { durationHours: { gte: DAY_TRIP_MAX_HOURS } };
+}
+
+/**
  * Product search. Initial implementation queries the relational DB directly
  * (adequate for tens of thousands of listings) — the interface is designed
  * so Elasticsearch/OpenSearch or Algolia can be swapped in later.
@@ -72,8 +85,8 @@ export function buildProductWhere(input: SearchInput): Prisma.ProductWhereInput 
   if (input.difficulty) where.difficulty = input.difficulty;
   if (input.language) where.languages = { contains: input.language };
   if (input.duration === "short") where.durationHours = { lte: 4 };
-  if (input.duration === "full") where.durationHours = { gt: 4, lte: 8 };
-  if (input.duration === "multiday") where.durationHours = { gt: 8 };
+  if (input.duration === "full") where.durationHours = { gt: 4, lt: DAY_TRIP_MAX_HOURS };
+  if (input.duration === "multiday") where.durationHours = { gte: DAY_TRIP_MAX_HOURS };
 
   return where;
 }
