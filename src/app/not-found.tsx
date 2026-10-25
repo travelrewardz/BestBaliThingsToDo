@@ -6,9 +6,16 @@ import { ButtonLink } from "@/components/ui";
 import { SearchBox } from "@/components/SearchBox";
 
 async function NotFoundContent() {
-  const [tours, destinations] = await Promise.all([
+  const [tours, destinations, activities] = await Promise.all([
     popularProducts(4).catch(() => []),
     prisma.destination.findMany({ where: { active: true }, take: 6, orderBy: { sortOrder: "asc" } }).catch(() => []),
+    prisma.category
+      .findMany({
+        where: { active: true, kind: "ACTIVITY" },
+        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+        select: { name: true, slug: true, icon: true },
+      })
+      .catch(() => []),
   ]);
   return (
     <div className="mx-auto max-w-5xl px-4 py-16 text-center">
@@ -19,7 +26,7 @@ async function NotFoundContent() {
         or jump back into the fun below.
       </p>
       <div className="mx-auto mt-6 max-w-2xl text-left">
-        <SearchBox compact />
+        <SearchBox compact activities={activities} />
       </div>
       <div className="mt-5 flex flex-wrap justify-center gap-3">
         <ButtonLink href="/" variant="primary">Go to homepage</ButtonLink>

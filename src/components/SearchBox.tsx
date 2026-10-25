@@ -3,17 +3,27 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-export function SearchBox({ compact = false }: { compact?: boolean }) {
+export type SearchActivity = { name: string; slug: string; icon?: string | null };
+
+export function SearchBox({
+  compact = false,
+  activities = [],
+}: {
+  compact?: boolean;
+  activities?: SearchActivity[];
+}) {
   const router = useRouter();
   const [q, setQ] = useState("");
-  const [destination, setDestination] = useState("");
+  const [activity, setActivity] = useState("");
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
-    const params = new URLSearchParams();
-    if (q) params.set("q", q);
-    if (destination) params.set("destination", destination);
-    router.push(`/search?${params.toString()}`);
+    // Picking an activity opens its live page; free text keeps the search URL.
+    if (activity) {
+      router.push(`/activity/${activity}`);
+      return;
+    }
+    if (q) router.push(`/search?q=${encodeURIComponent(q)}`);
   }
 
   return (
@@ -36,22 +46,20 @@ export function SearchBox({ compact = false }: { compact?: boolean }) {
       </div>
       <div className="hidden h-8 w-px bg-slate-200 sm:block" />
       <div className="flex flex-1 items-center gap-2 px-3">
-        <span aria-hidden>📍</span>
+        <span aria-hidden>🎯</span>
         <select
-          value={destination}
-          onChange={(e) => setDestination(e.target.value)}
-          aria-label="Destination"
+          value={activity}
+          onChange={(e) => setActivity(e.target.value)}
+          aria-label="Activity"
           className="w-full bg-transparent py-3 text-sm text-slate-600 focus:outline-none"
         >
-          <option value="">Where do you want to go?</option>
-          <option value="ubud">Ubud</option>
-          <option value="nusa-penida">Nusa Penida</option>
-          <option value="canggu">Canggu</option>
-          <option value="seminyak">Seminyak</option>
-          <option value="kuta">Kuta</option>
-          <option value="uluwatu">Uluwatu</option>
-          <option value="kintamani">Kintamani</option>
-          <option value="mount-batur">Mount Batur</option>
+          <option value="">What do you want to do?</option>
+          {activities.map((a) => (
+            <option key={a.slug} value={a.slug}>
+              {a.icon ? `${a.icon} ` : ""}
+              {a.name}
+            </option>
+          ))}
         </select>
       </div>
       <button

@@ -67,9 +67,10 @@ export default async function HomePage() {
       {/* ---------- Hero ---------- */}
       <section className="relative overflow-hidden bg-brand-900">
         <div className="absolute inset-0">
-          <div className="absolute inset-0 bg-gradient-to-br from-brand-900 via-brand-800 to-slate-900 opacity-95" />
-          <div className="absolute -right-20 -top-20 h-96 w-96 rounded-full bg-sunset-500/20 blur-3xl" />
-          <div className="absolute -bottom-32 -left-16 h-96 w-96 rounded-full bg-brand-400/20 blur-3xl" />
+          <SmartImage src="/media/hero-uluwatu-sunset.webp" alt="" fill priority sizes="100vw" />
+          {/* Keep the headline, search bar and badges readable over the photo. */}
+          <div className="absolute inset-0 bg-gradient-to-r from-brand-900 via-brand-900/80 to-brand-900/25" />
+          <div className="absolute inset-0 bg-gradient-to-t from-brand-900/70 via-transparent to-brand-900/40" />
         </div>
         <div className="relative mx-auto max-w-7xl px-4 py-16 md:py-24">
           <div className="max-w-3xl">
@@ -85,7 +86,7 @@ export default async function HomePage() {
             </p>
           </div>
           <div className="mt-8 max-w-4xl">
-            <SearchBox />
+            <SearchBox activities={activities.map((a) => ({ name: a.name, slug: a.slug, icon: a.icon }))} />
           </div>
           <div className="mt-6 flex flex-wrap gap-2 text-xs font-semibold text-brand-100">
             {["Instant confirmation", "Free cancellation", "Verified suppliers", "Secure payment"].map(
