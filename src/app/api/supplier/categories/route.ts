@@ -7,6 +7,8 @@ import { z } from "zod";
 
 const createCategorySchema = z.object({
   name: z.string().trim().min(2).max(60),
+  /** CATEGORY = homepage tiles, ACTIVITY = /activity/ pages; suppliers can add either. */
+  kind: z.enum(["CATEGORY", "ACTIVITY"]).default("CATEGORY"),
 });
 
 /** Slug unique across ALL categories (the DB constraint on slug is global). */
@@ -25,9 +27,10 @@ async function uniqueSlug(base: string): Promise<string> {
 }
 
 /**
- * POST /api/supplier/categories — let a supplier add a category from the tour form.
- * Reuses an existing category when the name already matches (case-insensitive),
- * otherwise creates a new active CATEGORY and pings the admins to review it.
+ * POST /api/supplier/categories — let a supplier add a category or activity from
+ * the tour form's Destinations & categories section.
+ * Reuses an existing row when the name already matches (case-insensitive) within
+ * the same kind, otherwise creates a new active row and pings the admins to review it.
  */
 export async function POST(req: Request) {
   return handle(req, async (req) => {
@@ -37,9 +40,11 @@ export async function POST(req: Request) {
 
     const body = await parseJson(req, createCategorySchema);
     const name = body.name.trim();
+    const kind = body.kind;
+    const label = kind === "ACTIVITY" ? "activity" : "category";
 
     const existing = await prisma.category.findFirst({
-      where: { kind: "CATEGORY", name: { equals: name, mode: "insensitive" } },
+      where: { kind, name: { equals: name, mode: "insensitive" } },
       select: { id: true, name: true, slug: true, active: true },
     });
     if (existing) {
@@ -50,7 +55,7 @@ export async function POST(req: Request) {
       data: {
         name,
         slug: await uniqueSlug(name),
-        kind: "CATEGORY",
+        kind,
         active: true,
       },
       select: { id: true, name: true, slug: true, active: true },
@@ -58,15 +63,15 @@ export async function POST(req: Request) {
 
     await audit({
       user,
-      action: "supplier.category.create",
+      action: `supplier.${label}.create`,
       entityType: "Category",
       entityId: category.id,
-      summary: `${user.name} added category "${category.name}".`,
+      summary: `${user.name} added ${label} "${category.name}".`,
     });
 
     await notifyRole("ADMIN", {
       type: "SYSTEM",
-      title: "New category added by a supplier",
+      title: `New ${label} added by a supplier`,
       body: `${category.name} — added by ${user.name}`,
       link: "/admin/destinations",
     });

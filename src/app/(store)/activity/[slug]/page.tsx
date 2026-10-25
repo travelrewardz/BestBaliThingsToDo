@@ -59,7 +59,7 @@ export default async function ActivityCategoryPage({
       },
     }),
     prisma.category.findMany({
-      where: { active: true, kind: "CATEGORY", id: { not: category.id } },
+      where: { active: true, kind: { in: ["CATEGORY", "ACTIVITY"] }, id: { not: category.id } },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
       select: { name: true, slug: true, icon: true },
       take: 12,

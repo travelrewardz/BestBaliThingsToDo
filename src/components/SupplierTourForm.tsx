@@ -184,6 +184,10 @@ export function SupplierTourForm({
   const [newCategory, setNewCategory] = useState("");
   const [addingCategory, setAddingCategory] = useState(false);
   const [categoryError, setCategoryError] = useState<string | null>(null);
+  const [activityList, setActivityList] = useState<Ref[]>(activities);
+  const [newActivity, setNewActivity] = useState("");
+  const [addingActivity, setAddingActivity] = useState(false);
+  const [activityError, setActivityError] = useState<string | null>(null);
   /** Once the supplier picks a trip length manually, duration changes stop overwriting it. */
   const [tripLengthTouched, setTripLengthTouched] = useState(false);
 
@@ -263,41 +267,57 @@ export function SupplierTourForm({
         : [...prev.categoryLinks, id],
     }));
 
-  /** Adds a category from the tour form (reuses an existing one on a name match). */
-  async function addCategory() {
-    const name = newCategory.trim();
+  /**
+   * Adds a category or activity from the tour form (reuses an existing row on a
+   * name match within the same kind) and selects it on this tour.
+   */
+  async function addRef(kind: "CATEGORY" | "ACTIVITY") {
+    const isActivity = kind === "ACTIVITY";
+    const label = isActivity ? "activity" : "category";
+    const name = (isActivity ? newActivity : newCategory).trim();
+    const setError = isActivity ? setActivityError : setCategoryError;
     if (name.length < 2) {
-      setCategoryError("Type a category name (at least 2 characters).");
+      setError(`Type a ${label} name (at least 2 characters).`);
       return;
     }
-    setAddingCategory(true);
-    setCategoryError(null);
+    if (isActivity) setAddingActivity(true);
+    else setAddingCategory(true);
+    setError(null);
     try {
       const res = await fetch("/api/supplier/categories", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, kind }),
       });
       const data = await res.json().catch(() => ({} as { error?: { message?: string }; category?: Ref }));
       if (!res.ok || !data.category) {
-        setCategoryError(data?.error?.message ?? "Could not add this category.");
+        setError(data?.error?.message ?? `Could not add this ${label}.`);
         return;
       }
       const added = data.category;
-      setCategoryList((prev) => (prev.some((c) => c.id === added.id) ? prev : [...prev, added]));
+      if (isActivity) {
+        setActivityList((prev) => (prev.some((a) => a.id === added.id) ? prev : [...prev, added]));
+      } else {
+        setCategoryList((prev) => (prev.some((c) => c.id === added.id) ? prev : [...prev, added]));
+      }
       setV((prev) =>
         prev.categoryLinks.includes(added.id)
           ? prev
           : { ...prev, categoryLinks: [...prev.categoryLinks, added.id] }
       );
-      setNewCategory("");
+      if (isActivity) setNewActivity("");
+      else setNewCategory("");
       setSaved(null);
     } catch {
-      setCategoryError("Network error — the category was not added.");
+      setError(`Network error — the ${label} was not added.`);
     } finally {
-      setAddingCategory(false);
+      if (isActivity) setAddingActivity(false);
+      else setAddingCategory(false);
     }
   }
+
+  const addCategory = () => addRef("CATEGORY");
+  const addActivity = () => addRef("ACTIVITY");
 
   const pricePreview = useMemo(() => {
     const cents = (s: string) => (s.trim() ? parseMoneyInput(s) : 0);
@@ -703,7 +723,7 @@ export function SupplierTourForm({
                 storefront.
               </p>
               <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                {activities.map((a) => (
+                {activityList.map((a) => (
                   <label key={a.id} className="flex items-center gap-2 text-sm font-semibold text-slate-700">
                     <input
                       type="checkbox"
@@ -713,13 +733,42 @@ export function SupplierTourForm({
                     {a.name}
                   </label>
                 ))}
-                {activities.length === 0 && (
-                  <p className="text-sm text-slate-400">
-                    No activities yet — your admin can add them in Admin → Destinations (Kind:
-                    ACTIVITY).
-                  </p>
+                {activityList.length === 0 && (
+                  <p className="text-sm text-slate-400">No activities yet — add the first one below.</p>
                 )}
               </div>
+
+              <div className="mt-4 flex flex-wrap items-end gap-2 border-t border-slate-100 pt-4">
+                <Field
+                  label="Add an activity"
+                  htmlFor="new-activity"
+                  hint="Pick a name that isn't listed and press Add — it is selected for you."
+                  className="min-w-[240px] flex-1"
+                >
+                  <Input
+                    id="new-activity"
+                    value={newActivity}
+                    onChange={(e) => {
+                      setNewActivity(e.target.value);
+                      setActivityError(null);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        void addActivity();
+                      }
+                    }}
+                    maxLength={60}
+                    placeholder="Trekking"
+                  />
+                </Field>
+                <div className="flex items-center pb-6">
+                  <Button type="button" variant="outline" size="sm" onClick={() => void addActivity()} disabled={addingActivity}>
+                    {addingActivity ? "Adding…" : "+ Add activity"}
+                  </Button>
+                </div>
+              </div>
+              {activityError && <p className="mt-2 text-sm font-semibold text-red-600">{activityError}</p>}
             </div>
           </Section>
 
