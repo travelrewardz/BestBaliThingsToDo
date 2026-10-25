@@ -9,19 +9,6 @@ import { mdToText } from "@/lib/md";
 
 export const revalidate = 300; // ISR: homepage refreshes every 5 minutes
 
-const CATEGORIES = [
-  { name: "Adventure", slug: "adventure", emoji: "🪂" },
-  { name: "ATV", slug: "atv", emoji: "🏍️" },
-  { name: "Rafting", slug: "rafting", emoji: "🛶" },
-  { name: "Water Sports", slug: "water-sports", emoji: "🌊" },
-  { name: "Ubud Tours", slug: "ubud", emoji: "🎑" },
-  { name: "Nusa Penida", slug: "nusa-penida", emoji: "🏝️" },
-  { name: "Cultural Tours", slug: "cultural", emoji: "🛕" },
-  { name: "Temple Tours", slug: "temple", emoji: "⛩️" },
-  { name: "Sunrise Tours", slug: "sunrise", emoji: "🌄" },
-  { name: "Private Tours", slug: "private", emoji: "🚗" },
-];
-
 const DESTINATIONS = [
   { name: "Ubud", slug: "ubud", emoji: "🎑" },
   { name: "Canggu", slug: "canggu", emoji: "🏄" },
@@ -43,11 +30,18 @@ const WHY = [
 ];
 
 export default async function HomePage() {
-  const [tours, destinations, categories, testimonials, posts, faqs, stats] =
+  const [tours, destinations, categories, activities, testimonials, posts, faqs, stats] =
     await Promise.all([
       popularProducts(8),
       prisma.destination.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
-      prisma.category.findMany({ where: { active: true, kind: "CATEGORY" }, orderBy: { sortOrder: "asc" }, take: 10 }),
+      prisma.category.findMany({
+        where: { active: true, kind: "CATEGORY" },
+        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      }),
+      prisma.category.findMany({
+        where: { active: true, kind: "ACTIVITY" },
+        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      }),
       prisma.review.findMany({
         where: { status: "APPROVED" },
         orderBy: { createdAt: "desc" },
@@ -109,20 +103,20 @@ export default async function HomePage() {
       <section className="mx-auto max-w-7xl px-4 py-12">
         <h2 className="text-2xl font-bold md:text-3xl">Explore by category</h2>
         <div className="mt-6 grid grid-cols-3 gap-3 sm:grid-cols-5 md:grid-cols-5 lg:grid-cols-10">
-          {CATEGORIES.map((c) => (
+          {categories.map((c) => (
             <Link
-              key={c.slug}
+              key={c.id}
               href={`/activity/${c.slug}`}
               className="flex flex-col items-center gap-1.5 rounded-2xl border border-slate-200 bg-white p-3 text-center transition-all hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-md"
             >
-              <span className="text-2xl">{c.emoji}</span>
+              <span className="text-2xl">{c.icon || "🏷️"}</span>
               <span className="text-xs font-semibold text-slate-700">{c.name}</span>
             </Link>
           ))}
         </div>
-        {categories.length > 0 && (
+        {activities.length > 0 && (
           <div className="mt-4 flex flex-wrap gap-2">
-            {categories.map((c) => (
+            {activities.map((c) => (
               <Link
                 key={c.id}
                 href={`/activity/${c.slug}`}
