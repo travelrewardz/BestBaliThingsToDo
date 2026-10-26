@@ -797,7 +797,9 @@ export function SupplierTourForm({
                 <Input
                   id="durationHours"
                   type="number"
-                  step="0.5"
+                  // Days are free-typed (1.08 days = 26 h) — a fixed step would
+                  // flag perfectly valid durations as invalid.
+                  step={v.tripLength === "MULTIDAY" ? "any" : "0.5"}
                   min={v.tripLength === "MULTIDAY" ? "1" : "0.5"}
                   max={v.tripLength === "MULTIDAY" ? "10" : "240"}
                   value={
