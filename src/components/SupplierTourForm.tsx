@@ -650,7 +650,15 @@ export function SupplierTourForm({
                       className="mt-0.5"
                       checked={v.tripLength === opt.id}
                       onChange={() => {
-                        setV((prev) => ({ ...prev, tripLength: opt.id }));
+                        setV((prev) => ({
+                          ...prev,
+                          tripLength: opt.id,
+                          // A multi-day trip spans a night: keep at least 24 h so the
+                          // days field below never starts below 1 day.
+                          ...(opt.id === "MULTIDAY" && Number(prev.durationHours) < 24
+                            ? { durationHours: "24" }
+                            : {}),
+                        }));
                         setTripLengthTouched(true);
                         setSaved(null);
                       }}
@@ -774,21 +782,47 @@ export function SupplierTourForm({
 
           <Section title="Details" description="Duration, group size and difficulty.">
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Duration (hours)" htmlFor="durationHours" required>
+              <Field
+                label={v.tripLength === "MULTIDAY" ? "Duration (days)" : "Duration (hours)"}
+                htmlFor="durationHours"
+                required
+                hint={
+                  v.tripLength === "MULTIDAY"
+                    ? "Whole trip in days — 24 hours = 1 day, so a 3-day tour is “3”."
+                    : Number(v.durationHours) >= 24
+                      ? "24 hours or more counts as a multi-day trip — switch the trip length above."
+                      : "Total hours, back the same day."
+                }
+              >
                 <Input
                   id="durationHours"
                   type="number"
                   step="0.5"
-                  min="0.5"
-                  max="240"
-                  value={v.durationHours}
+                  min={v.tripLength === "MULTIDAY" ? "1" : "0.5"}
+                  max={v.tripLength === "MULTIDAY" ? "10" : "240"}
+                  value={
+                    v.tripLength === "MULTIDAY"
+                      ? v.durationHours === ""
+                        ? ""
+                        : String(Math.round((Number(v.durationHours) / 24) * 100) / 100)
+                      : v.durationHours
+                  }
                   onChange={(e) => {
-                    const hours = Number(e.target.value);
+                    const raw = e.target.value;
+                    // Multi-day tours are entered in days (×24 stored as hours);
+                    // day tours keep entering hours.
+                    const hours =
+                      raw === ""
+                        ? ""
+                        : v.tripLength === "MULTIDAY"
+                          ? String(Math.round(Number(raw) * 24 * 2) / 2)
+                          : raw;
+                    const numeric = hours === "" ? 0 : Number(hours);
                     const auto: Partial<TourFormValues> =
-                      !tripLengthTouched && hours >= 0.5
-                        ? { tripLength: hours >= 24 ? "MULTIDAY" : "DAY" }
+                      !tripLengthTouched && numeric >= 0.5
+                        ? { tripLength: numeric >= 24 ? "MULTIDAY" : "DAY" }
                         : {};
-                    setV((prev) => ({ ...prev, durationHours: e.target.value, ...auto }));
+                    setV((prev) => ({ ...prev, durationHours: hours, ...auto }));
                     setSaved(null);
                   }}
                 />
