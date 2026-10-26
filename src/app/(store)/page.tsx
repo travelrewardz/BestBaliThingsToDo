@@ -29,10 +29,54 @@ const WHY = [
   { title: "Customer support", text: "Real humans on WhatsApp, 7 days a week.", emoji: "💬" },
 ];
 
+/** One homepage tour block: heading, "View all" link and a card grid. */
+function TourSection({
+  title,
+  blurb,
+  href,
+  tours,
+  priority = false,
+}: {
+  title: string;
+  blurb: string;
+  href: string;
+  tours: Awaited<ReturnType<typeof popularProducts>>;
+  priority?: boolean;
+}) {
+  return (
+    <section className="bg-sand-50 py-12">
+      <div className="mx-auto max-w-7xl px-4">
+        <div className="flex items-end justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-bold md:text-3xl">{title}</h2>
+            <p className="mt-1 text-slate-500">{blurb}</p>
+          </div>
+          <ButtonLink href={href} variant="outline" size="sm">
+            View all →
+          </ButtonLink>
+        </div>
+        {tours.length > 0 ? (
+          <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            {tours.map((t, i) => (
+              <TourCard key={t.id} tour={t} priority={priority && i < 4} />
+            ))}
+          </div>
+        ) : (
+          <p className="mt-6 rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-slate-500">
+            Nothing published in this group yet — check back soon.
+          </p>
+        )}
+      </div>
+    </section>
+  );
+}
+
 export default async function HomePage() {
-  const [tours, destinations, categories, activities, testimonials, posts, faqs, stats] =
+  const [dayTours, multidayTours, banners, destinations, categories, activities, testimonials, posts, faqs, stats] =
     await Promise.all([
-      popularProducts(8),
+      popularProducts(8, { tripLength: "DAY" }),
+      popularProducts(8, { tripLength: "MULTIDAY" }),
+      prisma.banner.findMany({ where: { active: true, position: "HOME" }, orderBy: { sortOrder: "asc" } }),
       prisma.destination.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
       prisma.category.findMany({
         where: { active: true, kind: "CATEGORY" },
@@ -61,6 +105,34 @@ export default async function HomePage() {
   const destinationTiles: DestinationTile[] = destinations.length
     ? destinations.map((d) => ({ id: d.id, name: d.name, slug: d.slug, heroImage: d.heroImage }))
     : DESTINATIONS.map((d) => ({ id: d.slug, name: d.name, slug: d.slug, emoji: d.emoji }));
+
+  // Promotional banner: CMS-managed HOME banners win; with none active the
+  // homepage still carries its default promo.
+  const bannerItems: {
+    id: string;
+    title: string;
+    subtitle?: string;
+    pill: string;
+    href: string;
+    image?: string | null;
+  }[] = banners.length
+    ? banners.map((b) => ({
+        id: b.id,
+        title: b.title,
+        pill: "Featured offer",
+        href: b.link || "/search",
+        image: b.imageUrl,
+      }))
+    : [
+        {
+          id: "default-promo",
+          pill: "Plan your trip",
+          title: "Book Bali's best experiences in minutes",
+          subtitle: "Instant confirmation · Free cancellation · verified local suppliers.",
+          href: "/search",
+          image: "/media/hero-uluwatu-sunset.webp",
+        },
+      ];
 
   return (
     <>
@@ -165,30 +237,61 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* ---------- Popular tours ---------- */}
-      <section className="bg-sand-50 py-12">
-        <div className="mx-auto max-w-7xl px-4">
-          <div className="flex items-end justify-between gap-4">
-            <div>
-              <h2 className="text-2xl font-bold md:text-3xl">Popular tours & activities</h2>
-              <p className="mt-1 text-slate-500">Top-rated experiences travelers love right now</p>
-            </div>
-            <ButtonLink href="/search" variant="outline" size="sm">
-              View all →
-            </ButtonLink>
-          </div>
-          <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {tours.map((t, i) => (
-              <TourCard key={t.id} tour={t} priority={i < 4} />
-            ))}
-          </div>
-          {tours.length === 0 && (
-            <p className="mt-6 rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-slate-500">
-              Tours are being loaded — run <code>npm run db:seed</code> to populate demo content.
-            </p>
-          )}
+      {/* ---------- 1 Day trips ---------- */}
+      <TourSection
+        title="1 Day Trips"
+        blurb="Half-day escapes and full-day adventures — back at your hotel by evening."
+        href="/day-trips"
+        tours={dayTours}
+        priority
+      />
+
+      {/* ---------- Promotional banner ---------- */}
+      <section className="mx-auto max-w-7xl px-4 py-12">
+        <div className="space-y-4">
+          {bannerItems.map((b) => (
+            <Link
+              key={b.id}
+              href={b.href}
+              className="group relative block min-h-[200px] overflow-hidden rounded-3xl md:min-h-[240px]"
+            >
+              <SmartImage
+                src={b.image || "/media/hero-uluwatu-sunset.webp"}
+                alt=""
+                fill
+                sizes="100vw"
+                className="transition-transform duration-500 group-hover:scale-105"
+              />
+              <span
+                className="absolute inset-0 bg-gradient-to-r from-brand-900 via-brand-900/80 to-brand-900/30"
+                aria-hidden
+              />
+              <span className="relative flex min-h-[200px] flex-col justify-center gap-3 p-8 md:min-h-[240px] md:p-12">
+                <span className="inline-flex w-fit rounded-full bg-sunset-500 px-3 py-1 text-xs font-bold uppercase tracking-widest text-white">
+                  {b.pill}
+                </span>
+                <span className="max-w-xl font-display text-2xl font-bold text-white md:text-4xl">
+                  {b.title}
+                </span>
+                {b.subtitle && (
+                  <span className="max-w-lg text-sm text-brand-100 md:text-base">{b.subtitle}</span>
+                )}
+                <span className="mt-1 w-fit rounded-xl bg-white px-5 py-2.5 text-sm font-bold text-brand-800 transition-colors group-hover:bg-brand-50">
+                  View details →
+                </span>
+              </span>
+            </Link>
+          ))}
         </div>
       </section>
+
+      {/* ---------- Multi-day trips ---------- */}
+      <TourSection
+        title="Multi-day Trips"
+        blurb="24 hours or longer — island hops, sunrise treks and overnight journeys across Bali."
+        href="/multi-day-trips"
+        tours={multidayTours}
+      />
 
       {/* ---------- Destinations ---------- */}
       <section className="mx-auto max-w-7xl px-4 py-12">

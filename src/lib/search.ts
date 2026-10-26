@@ -186,10 +186,14 @@ export async function searchProducts(input: SearchInput) {
 }
 
 /** Popular / related listings used across the storefront. */
-export async function popularProducts(limit = 8, opts?: { category?: string; destination?: string; exclude?: string }) {
+export async function popularProducts(
+  limit = 8,
+  opts?: { category?: string; destination?: string; exclude?: string; tripLength?: "DAY" | "MULTIDAY" }
+) {
   return prisma.product.findMany({
     where: {
       status: "PUBLISHED",
+      ...(opts?.tripLength ? { tripLength: opts.tripLength } : {}),
       ...(opts?.category ? { category: { slug: opts.category } } : {}),
       ...(opts?.destination ? { destination: { slug: opts.destination } } : {}),
       ...(opts?.exclude ? { id: { not: opts.exclude } } : {}),
