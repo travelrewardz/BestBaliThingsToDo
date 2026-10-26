@@ -8,12 +8,15 @@ export type SearchActivity = { name: string; slug: string; icon?: string | null 
 export function SearchBox({
   compact = false,
   activities = [],
+  initialQuery = "",
 }: {
   compact?: boolean;
   activities?: SearchActivity[];
+  /** Prefills the keyword box — the /search page passes the active query. */
+  initialQuery?: string;
 }) {
   const router = useRouter();
-  const [q, setQ] = useState("");
+  const [q, setQ] = useState(initialQuery);
   const [activity, setActivity] = useState("");
 
   function submit(e: React.FormEvent) {

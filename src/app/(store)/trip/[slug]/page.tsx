@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { parseStringList } from "@/lib/tours";
+import { formatDuration, parseStringList } from "@/lib/tours";
 import { Badge, ButtonLink, Stars } from "@/components/ui";
 import { PhotoGallery } from "@/components/PhotoGallery";
 import { TourCard } from "@/components/TourCard";
@@ -89,12 +89,7 @@ async function relatedTours(tour: TourWithRelations) {
 }
 
 const durationLabel = (tour: { durationLabel: string | null; durationHours: number }) =>
-  tour.durationLabel ||
-  (tour.durationHours >= 24
-    ? `${Math.round(tour.durationHours / 24)} days`
-    : tour.durationHours <= 1
-      ? `${Math.round(tour.durationHours * 60)} minutes`
-      : `${tour.durationHours} hours`);
+  formatDuration(tour);
 
 export async function generateMetadata({
   params,

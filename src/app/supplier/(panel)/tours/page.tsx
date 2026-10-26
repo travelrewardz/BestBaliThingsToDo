@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { Badge, ButtonLink, EmptyState, SmartImage } from "@/components/ui";
 import { formatMoney } from "@/lib/money";
 import { requireSupplierPanel, productStatusTone, statusLabel } from "@/lib/supplier";
-import { effectiveFromPriceCents, parseDestinationLinks } from "@/lib/tours";
+import { effectiveFromPriceCents, formatDuration, parseDestinationLinks } from "@/lib/tours";
 import { SupplierTourActions } from "@/components/SupplierTourActions";
 
 export const metadata: Metadata = { title: "Tours" };
@@ -87,7 +87,7 @@ export default async function SupplierToursPage() {
                 : tour.destination?.name; // legacy fallback, same as the edit form
             const regions = links.flatMap((l) => l.regions).join(", ");
             const parts = [
-              tour.durationLabel ?? `${tour.durationHours} h`,
+              formatDuration(tour),
               tour.category?.name,
               destinationLabel,
               regions || undefined,

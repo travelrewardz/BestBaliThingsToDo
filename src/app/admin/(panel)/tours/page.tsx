@@ -6,7 +6,7 @@ import { Badge, Pagination, SmartImage } from "@/components/ui";
 import { DataTable, PageHeader, type Column } from "@/components/admin/DataTable";
 import { ActionButton } from "@/components/admin/ActionButton";
 import { productStatusTone, statusLabel } from "@/lib/supplier";
-import { effectiveFromPriceCents } from "@/lib/tours";
+import { effectiveFromPriceCents, formatDuration } from "@/lib/tours";
 import { formatMoney } from "@/lib/money";
 import { fmtDate, pageParam } from "@/lib/admin";
 
@@ -39,6 +39,8 @@ async function loadTours(where: Prisma.ProductWhereInput, page: number) {
         status: true,
         currency: true,
         priceAdultCents: true,
+        durationHours: true,
+        durationLabel: true,
         updatedAt: true,
         supplier: { select: { companyName: true } },
         destination: { select: { name: true } },
@@ -92,6 +94,11 @@ export default async function AdminToursPage({
           {[t.destination?.name, t.category?.name].filter(Boolean).join(" · ") || "—"}
         </span>
       ),
+    },
+    {
+      key: "duration",
+      header: "Duration",
+      render: (t) => <span className="text-slate-600">{formatDuration(t)}</span>,
     },
     {
       key: "price",

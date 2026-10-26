@@ -6,6 +6,21 @@ import { slugify, EDITABLE_STATUSES, type TourInput, type DestinationLink } from
  * Server-side helpers for supplier-owned tours (Product + options + tiers + media).
  */
 
+/**
+ * Human duration wording: the supplier's own label wins, otherwise anything
+ * spanning a night (24 h+) reads as days and day trips as hours/minutes.
+ */
+export function formatDuration(tour: { durationLabel?: string | null; durationHours: number }): string {
+  return (
+    tour.durationLabel ||
+    (tour.durationHours >= 24
+      ? `${Math.round(tour.durationHours / 24)} days`
+      : tour.durationHours <= 1
+        ? `${Math.round(tour.durationHours * 60)} minutes`
+        : `${tour.durationHours} hours`)
+  );
+}
+
 /** Product columns derived from a validated tour payload. */
 export function tourProductData(input: TourInput) {
   const primaryDestinationId = input.destinationLinks[0]?.id ?? input.destinationId ?? null;

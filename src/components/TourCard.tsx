@@ -2,7 +2,7 @@ import Link from "next/link";
 import { SmartImage, Badge, Stars } from "@/components/ui";
 import { FavoriteButton } from "@/components/FavoriteButton";
 import { formatMoney } from "@/lib/money";
-import { effectiveFromPriceCents } from "@/lib/tours";
+import { effectiveFromPriceCents, formatDuration } from "@/lib/tours";
 
 export type TourCardData = {
   id: string;
@@ -29,13 +29,7 @@ export type TourCardData = {
 export function TourCard({ tour, priority = false }: { tour: TourCardData; priority?: boolean }) {
   const image = tour.media?.[0]?.url;
   const effective = effectiveFromPriceCents(tour.priceAdultCents, tour.options);
-  const duration =
-    tour.durationLabel ||
-    (tour.durationHours >= 24
-      ? `${Math.round(tour.durationHours / 24)} days`
-      : tour.durationHours <= 1
-        ? `${tour.durationHours * 60} minutes`
-        : `${tour.durationHours} hours`);
+  const duration = formatDuration(tour);
 
   return (
     <article className="group relative flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-lg">
