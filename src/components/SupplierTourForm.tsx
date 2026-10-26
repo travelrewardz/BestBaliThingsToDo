@@ -788,7 +788,7 @@ export function SupplierTourForm({
                 required
                 hint={
                   v.tripLength === "MULTIDAY"
-                    ? "Whole trip in days — 24 hours = 1 day, so a 3-day tour is “3”."
+                    ? "Whole trip in days (1–31) — 24 hours = 1 day, so a 3-day tour is “3”."
                     : Number(v.durationHours) >= 24
                       ? "24 hours or more counts as a multi-day trip — switch the trip length above."
                       : "Total hours, back the same day."
@@ -801,12 +801,14 @@ export function SupplierTourForm({
                   // flag perfectly valid durations as invalid.
                   step={v.tripLength === "MULTIDAY" ? "any" : "0.5"}
                   min={v.tripLength === "MULTIDAY" ? "1" : "0.5"}
-                  max={v.tripLength === "MULTIDAY" ? "10" : "240"}
+                  max={v.tripLength === "MULTIDAY" ? "31" : "240"}
                   value={
                     v.tripLength === "MULTIDAY"
                       ? v.durationHours === ""
                         ? ""
-                        : String(Math.round((Number(v.durationHours) / 24) * 100) / 100)
+                        // Never show a fraction below a whole day — a legacy
+                        // sub-24 h multiday tour reads as “1”, not “0.17”.
+                        : String(Math.max(1, Math.round((Number(v.durationHours) / 24) * 100) / 100))
                       : v.durationHours
                   }
                   onChange={(e) => {
@@ -832,7 +834,7 @@ export function SupplierTourForm({
               <Field
                 label="Duration text"
                 htmlFor="durationLabel"
-                hint="Human wording shown on cards, e.g. “3 days / 2 nights”."
+                hint="Human wording shown on cards, e.g. “1 hour activity” or “3 days / 2 nights”."
               >
                 <Input id="durationLabel" value={v.durationLabel} onChange={set("durationLabel")} maxLength={60} />
               </Field>

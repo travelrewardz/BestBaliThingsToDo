@@ -129,7 +129,9 @@ export const tourSchema = z.object({
   location: optionalText(160),
   meetingPoint: optionalText(200),
   pickupInfo: optionalText(500),
-  durationHours: z.number().min(0.5).max(240),
+  // 31 days; the supplier form switches between hours (day trips) and days
+  // (multiday trips), both capped at the same total length.
+  durationHours: z.number().min(0.5).max(744),
   durationLabel: optionalText(60),
   tourType: z.enum(["GROUP", "PRIVATE"]),
   minParticipants: z.number().int().min(1).max(200),
