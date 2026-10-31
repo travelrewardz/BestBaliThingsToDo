@@ -340,6 +340,8 @@ export function SupplierTourForm({
       return "Please add a short description of at least 10 characters.";
     if (v.description.trim().length < 20)
       return "Please add a full description of at least 20 characters.";
+    if (v.description.length > 20_000)
+      return "Your full description is too long — please keep it under 20,000 characters.";
     const min = Number(v.minParticipants) || 1;
     const max = Number(v.maxParticipants) || 1;
     if (max < min) return "Max pax must be at least the minimum.";
@@ -532,14 +534,17 @@ export function SupplierTourForm({
                 htmlFor="description"
                 required
                 className="sm:col-span-2"
-                hint="At least 20 characters. Markdown formatting is supported."
+                hint="Rich text — headings, bold, italic, lists, quotes and links. At least 20 characters."
               >
-                <Textarea
+                <RichTextEditor
                   id="description"
                   value={v.description}
-                  onChange={set("description")}
-                  className="min-h-40"
-                  maxLength={20000}
+                  placeholder="Describe the experience, what's included and what makes it special…"
+                  minHeightClass="min-h-64"
+                  onChange={(val) => {
+                    setV((prev) => ({ ...prev, description: val }));
+                    setSaved(null);
+                  }}
                 />
               </Field>
             </div>
